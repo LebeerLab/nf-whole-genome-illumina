@@ -3,3 +3,4 @@
 work
 data/samplesheet.tsv
 *__pycache__*
+results*

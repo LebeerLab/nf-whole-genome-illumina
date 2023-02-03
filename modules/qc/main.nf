@@ -1,5 +1,5 @@
 // PARAMETERS
-params.CONTAINER = "tehoaphidian/kraken-bracken"
+params.CONTAINER = "theoaphidian/wgs-illumina"
 params.OUTPUT = "results"
 
 params.MINLEN = 50

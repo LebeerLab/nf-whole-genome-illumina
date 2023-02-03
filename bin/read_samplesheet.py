@@ -53,6 +53,8 @@ class SampleSheet:
 
         # TODO Add resulting assembly path as column
 
+        # TODO Rename ID, rv_read, fw_read cols to fixed names
+
     def write_samplesheet(self):
         self.content.to_csv(
             "{}.tsv".format(self.filename.split(".")[0]), sep="\t", index=False

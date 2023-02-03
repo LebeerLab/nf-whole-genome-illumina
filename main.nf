@@ -1,6 +1,6 @@
 params.samplesheet = "${projectDir}/data/samplesheet.tsv"
 params.outdir = "results"
-params.sampleDatabase = "sampledb.tsv"
+params.sampleDatabase = "./sampledb"
 params.sampleName = "ID"
 params.fw_reads = "fw_reads"
 params.rev_reads = "rv_reads"
@@ -14,6 +14,8 @@ params.trimLeft = 0
 params.trimRight = 0
 params.minLen = 50
 params.maxN = 2
+
+include { FASTP; MULTIQC } from './modules/qc' addParams(OUTPUT: "${params.outdir}")
 
 def helpMessage() {
     log.info"""
@@ -83,44 +85,34 @@ process READ_SAMPLESHEET {
 }
 
 workflow {
-
+    
     paramsUsed()
-
+    
+    // Read samplesheet: find and update paths to reads (externalize from nf?)
     READ_SAMPLESHEET(params.samplesheet)
 
-    // Read samplesheet: find and update paths to reads (externalize from nf?)
+    // Extract reads from samplesheet
+    Channel.fromPath( file(params.samplesheet))
+        .splitCsv(header: true, sep: "\t")
+        .map {row -> tuple(row.ID, file(row.fw_reads), file(row.rv_reads))}
+        .set{reads_ch}
 
+    if (!params.skip_fastp){
 
-    // Collect all fastq files
-    // Channel
-    //     .fromFilePairs(params.reads, size: params.pairedEnd ? 2 : 1)
-    //     .ifEmpty { error "Could not find any reads matching the pattern ${params.reads}"}
-    //     .take( params.debug ? 3 : -1 )
-    //     //remove 'empty' samples
-    //     .branch {
-    //         success : params.pairedEnd ? it[1][1].countFastq() >= params.min_reads &&  it[1][0].countFastq() >= params.min_reads : it[1][0].countFastq() >= params.min_reads 
-    //         failed : params.pairedEnd ? it[1][1].countFastq() < params.min_reads &&  it[1][0].countFastq() < params.min_reads : it[1][0].countFastq() < params.min_reads
-    //     }
-    //     .set { reads }
+        //Filter and trim using fastp
+        FASTP(reads_ch)
 
-    // reads.failed.subscribe { println "Sample ${it[0]} did not meet minimum reads requirement of ${params.min_reads} reads and is excluded."}
+        FASTP.out.filteredReads
+            .ifEmpty { error "No reads to filter"}
+            .set { filteredReads }
 
-    // if (!params.skip_fastp){
+        FASTP.out.fastp
+            .collect()
+            .set{fastp}
 
-    //     // Filter and trim using fastp
-    //     FASTP(reads.success)
-
-    //     FASTP.out.filteredReads
-    //         .ifEmpty { error "No reads to filter"}
-    //         .set { filteredReads }
-
-    //     FASTP.out.fastp
-    //         .collect()
-    //         .set{fastp}
-
-    //     MULTIQC(fastp)
-    // } else {
-    //     filteredReads = reads.success
-    // }
+        MULTIQC(fastp)
+    } else {
+        filteredReads = reads_ch
+    }
 
 }
