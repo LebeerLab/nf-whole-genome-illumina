@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 
 import os
-from pathlib import Path
 import argparse
+from pathlib import Path
 import pandas as pd
+
+from utils import generate_uqid
 
 class SampleSheet:
     def __init__(self, samplesheet, sample_col, fw_col, rev_col, sample_db_dir, run_id) -> None:
@@ -40,8 +42,7 @@ class SampleSheet:
         # Add run_name as column
         self.content["run_id"] = self.run_id
         # Generate uqid
-        # TODO: make the uqid reproducible
-        self.content["uqid"] = self.content[["run_id", self.fw_col, self.rev_col]].sum(axis=1).map(hash)
+        self.content["uqid"] = self.content[["run_id", self.fw_col, self.rev_col]].sum(axis=1).map(generate_uqid)
 
         # TODO Add resulting assembly path as column
 

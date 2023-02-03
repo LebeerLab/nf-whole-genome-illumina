@@ -2,3 +2,4 @@
 .nextflow*
 work
 data/samplesheet.tsv
+*__pycache__*
