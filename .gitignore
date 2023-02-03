@@ -1,0 +1,4 @@
+.prettier*
+.nextflow*
+work
+data/samplesheet.tsv

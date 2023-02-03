@@ -1,6 +1,6 @@
 name: shovil-wgs-illumina
 channels:
- - default
+  - default
 dependencies:
   - bioconda::shovil=1.0.4
   - bioconda::fastp=0.23.2
