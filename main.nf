@@ -94,7 +94,7 @@ workflow {
     // Extract reads from samplesheet
     Channel.fromPath( file(params.samplesheet))
         .splitCsv(header: true, sep: "\t")
-        .map {row -> tuple(row.ID, file(row.fw_reads), file(row.rv_reads))}
+        .map {row -> tuple(row.ID, tuple(file(row.fw_reads), file(row.rv_reads)))}
         .set{reads_ch}
 
     if (!params.skip_fastp){
