@@ -23,7 +23,7 @@ class SampleSheet:
         samples_db_dir_path = Path(sample_db_dir)
 
         if not samples_db_dir_path.exists():
-            samples_db_dir_path.mkdir()
+            samples_db_dir_path.mkdir(exist_ok=True, parents=True) 
 
     def read_samplesheet(self):
 
