@@ -71,10 +71,10 @@ process READ_SAMPLESHEET {
     publishDir "${params.sampleDatabase}", mode: 'copy'
 
     input:
-    path(samplesheet)
+    path: samplesheet
 
     output:
-    path("samplesheet.tsv")
+    path: "samplesheet.tsv"
 
     script:
     """
@@ -90,12 +90,11 @@ workflow {
     
     // Read samplesheet: find and update paths to reads (externalize from nf?)
     READ_SAMPLESHEET(params.samplesheet)
-        .set{samplesheetAbsolute}
+        .set{ samplesheetAbsolute }
 
     // Extract reads from samplesheet
-    def fileSep = file(samplesheetAbsolute).getExtension() == "tsv" ? "\t" : ","
-    Channel.fromPath( file(samplesheetAbsolute))
-        .splitCsv(header: true, sep: fileSep) 
+    samplesheetAbsolute
+        .splitCsv(header: true, sep: "\t") 
         .map {row -> tuple(row.ID, tuple(file(row.fw_reads), file(row.rv_reads)))}
         .set{reads_ch}
 
