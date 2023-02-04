@@ -71,10 +71,10 @@ process READ_SAMPLESHEET {
     publishDir "${params.sampleDatabase}", mode: 'copy'
 
     input:
-    path: samplesheet
+    path(samplesheet) 
 
     output:
-    path: "samplesheet.tsv"
+    path("samplesheet.tsv") 
 
     script:
     """
