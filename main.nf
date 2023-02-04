@@ -74,7 +74,8 @@ process READ_SAMPLESHEET {
     path(samplesheet) 
 
     output:
-    path(getSimpleName(samplesheet) + ".tsv") 
+    path "samplesheet.tsv", emit: samplesheetAbsolute
+    //path "database.tsv", emit: database.tsv
 
     script:
     """
@@ -89,11 +90,10 @@ workflow {
     paramsUsed()
     
     // Read samplesheet: find and update paths to reads (externalize from nf?)
-    READ_SAMPLESHEET(params.samplesheet)
-        .set{ samplesheetAbsolute }
+    READ_SAMPLESHEET(params.samplesheet) 
 
     // Extract reads from samplesheet
-    samplesheetAbsolute
+    READ_SAMPLESHEET.out.samplesheetAbsolute
         .splitCsv(header: true, sep: "\t") 
         .map {row -> tuple(row.ID, tuple(file(row.fw_reads), file(row.rv_reads)))}
         .set{reads_ch}
