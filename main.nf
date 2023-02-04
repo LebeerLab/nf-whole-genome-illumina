@@ -93,7 +93,7 @@ workflow {
         .set{samplesheetAbsolute}
 
     // Extract reads from samplesheet
-    def fileSep = samplesheetAbsolute.getExtension() == "tsv" ? "\t" : ","
+    def fileSep = file(samplesheetAbsolute).getExtension() == "tsv" ? "\t" : ","
     Channel.fromPath( file(samplesheetAbsolute))
         .splitCsv(header: true, sep: fileSep) 
         .map {row -> tuple(row.ID, tuple(file(row.fw_reads), file(row.rv_reads)))}
