@@ -90,10 +90,11 @@ workflow {
     
     // Read samplesheet: find and update paths to reads (externalize from nf?)
     READ_SAMPLESHEET(params.samplesheet)
+        .set{samplesheetAbsolute}
 
     // Extract reads from samplesheet
-    def fileSep = file(params.samplesheet).getExtension() == "tsv" ? "\t" : ","
-    Channel.fromPath( file(params.samplesheet))
+    def fileSep = samplesheetAbsolute.getExtension() == "tsv" ? "\t" : ","
+    Channel.fromPath( file(samplesheetAbsolute))
         .splitCsv(header: true, sep: fileSep) 
         .map {row -> tuple(row.ID, tuple(file(row.fw_reads), file(row.rv_reads)))}
         .set{reads_ch}
