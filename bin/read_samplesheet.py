@@ -57,7 +57,7 @@ class SampleSheet:
 
     def write_samplesheet(self):
         self.content.to_csv(
-            "{}.tsv".format(self.filename.split(".")[0]), sep="\t", index=False
+            "samplesheet.tsv", sep="\t", index=False
         )
 
     def update_sampledb(self):
