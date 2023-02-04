@@ -1,9 +1,9 @@
-params.samplesheet = "${projectDir}/data/samplesheet.tsv"
+params.samplesheet = "${projectDir}/data/samplesheet.csv"
 params.outdir = "results"
 params.sampleDatabase = "./sampledb"
 params.sampleName = "ID"
 params.fw_reads = "fw_reads"
-params.rev_reads = "rv_reads"
+params.rv_reads = "rv_reads"
 params.runName = "run01"
 
 params.debug = false
@@ -26,7 +26,7 @@ def helpMessage() {
       --samplesheet             Path to the samplesheet containing the reads to be assembled. Default: ${params.samplesheet}
       --sampleName              Column with the name of the sample. Default: ${params.sampleName}
       --fw_reads                Column name of the forward read. Default: ${params.fw_reads}
-      --rev_reads               Column name of the reverse read. Default: ${params.rev_reads}
+      --rv_reads               Column name of the reverse read. Default: ${params.rv_reads}
       --sampleDatabase          Path to a tsv file to store the location of the result and input. Default: ${params.sampleDatabase}
       --runName                 Name of the run. Default: ${params.runName}
 
@@ -79,7 +79,7 @@ process READ_SAMPLESHEET {
     script:
     """
     read_samplesheet.py "${params.samplesheet}" "${params.sampleName}" \
-    "${params.fw_reads}" "${params.rev_reads}" "${params.sampleDatabase}" "${params.runName}"
+    "${params.fw_reads}" "${params.rv_reads}" "${params.sampleDatabase}" "${params.runName}"
     """
 
 }
