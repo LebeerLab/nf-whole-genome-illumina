@@ -92,8 +92,9 @@ workflow {
     READ_SAMPLESHEET(params.samplesheet)
 
     // Extract reads from samplesheet
+    def fileSep = file(params.samplesheet).getExtension() == "tsv" ? "\t" : ","
     Channel.fromPath( file(params.samplesheet))
-        .splitCsv(header: true, sep: "\t")
+        .splitCsv(header: true, sep: fileSep) 
         .map {row -> tuple(row.ID, tuple(file(row.fw_reads), file(row.rv_reads)))}
         .set{reads_ch}
 
