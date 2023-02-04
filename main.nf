@@ -74,7 +74,7 @@ process READ_SAMPLESHEET {
     path(samplesheet) 
 
     output:
-    path("samplesheet.tsv") 
+    path(getSimpleName(samplesheet) + ".tsv") 
 
     script:
     """
