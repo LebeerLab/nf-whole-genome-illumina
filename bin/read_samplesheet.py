@@ -10,7 +10,14 @@ from utils import generate_uqid
 
 class SampleSheet:
     def __init__(
-        self, samplesheet, sample_col, fw_col, rev_col, sample_db_dir, run_id
+        self,
+        samplesheet,
+        sample_col,
+        fw_col,
+        rev_col,
+        sample_db_dir,
+        run_id,
+        corrected_sheet=False,
     ) -> None:
 
         self.filename = samplesheet
@@ -19,11 +26,12 @@ class SampleSheet:
         self.rev_col = rev_col
         self.sample_db_samplesheet = os.path.join(sample_db_dir, "sampledb.tsv")
         self.run_id = run_id
+        self.corrected_sheet = corrected_sheet
 
         samples_db_dir_path = Path(sample_db_dir)
 
         if not samples_db_dir_path.exists():
-            samples_db_dir_path.mkdir(exist_ok=True, parents=True) 
+            samples_db_dir_path.mkdir(exist_ok=True, parents=True)
 
     def read_samplesheet(self):
 
@@ -56,9 +64,7 @@ class SampleSheet:
         # TODO Rename ID, rv_read, fw_read cols to fixed names
 
     def write_samplesheet(self):
-        self.content.to_csv(
-            "samplesheet.tsv", sep="\t", index=False
-        )
+        self.content.to_csv("samplesheet.tsv", sep="\t", index=False)
 
     def update_sampledb(self):
 
@@ -105,6 +111,7 @@ if __name__ == "__main__":
     parser.add_argument("reverse_column")
     parser.add_argument("sample_db_dir")
     parser.add_argument("run_name")
+    parser.add_argument("-c", "--corrected", action="store_true")
 
     args = parser.parse_args()
 
@@ -115,12 +122,15 @@ if __name__ == "__main__":
         args.reverse_column,
         args.sample_db_dir,
         args.run_name,
+        args.corrected,
     )
-    # Run these at the start of the pipeline
-    # TODO: Add true/false finished_pipeline flag
-    smpsh.read_samplesheet()
-    smpsh.update_samplesheet()
-    smpsh.write_samplesheet()
 
-    # Run this when finished
-    # smpsh.update_sampledb()
+    smpsh.read_samplesheet()
+
+    # Run these at the start of the pipeline
+    if not smpsh.corrected_sheet:
+        smpsh.update_samplesheet()
+        smpsh.write_samplesheet()
+    else:
+        # Run this when finished
+        smpsh.update_sampledb()

@@ -68,7 +68,7 @@ if (params.help  || params.h){
 
 process READ_SAMPLESHEET {
 
-    publishDir "${params.sampleDatabase}", mode: 'copy'
+    publishDir file("${params.samplesheet}").getParent(), mode: 'copy'
 
     input:
     path(samplesheet) 
