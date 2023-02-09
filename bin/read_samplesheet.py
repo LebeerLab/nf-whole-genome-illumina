@@ -7,6 +7,7 @@ import pandas as pd
 
 from utils import generate_uqid
 
+CORR_SAMPLESHEET = "samplesheet.tsv"
 
 class SampleSheet:
     def __init__(
@@ -19,19 +20,21 @@ class SampleSheet:
         run_id,
         corrected_sheet=False,
     ) -> None:
-
-        self.filename = samplesheet
         self.sample_col = sample_col
         self.fw_col = fw_col
         self.rev_col = rev_col
         self.sample_db_samplesheet = os.path.join(sample_db_dir, "sampledb.tsv")
         self.run_id = run_id
         self.corrected_sheet = corrected_sheet
-
+        if corrected_sheet:
+            self.filename = os.path.join(os.path.dirname(samplesheet), CORR_SAMPLESHEET)
+        else:
+            self.filename = samplesheet
+        
         samples_db_dir_path = Path(sample_db_dir)
 
         if not samples_db_dir_path.exists():
-            samples_db_dir_path.mkdir(exist_ok=True, parents=True)
+            os.makedirs(samples_db_dir_path, exist_ok=True)
 
     def read_samplesheet(self):
 
@@ -60,20 +63,32 @@ class SampleSheet:
         )
 
         # TODO Add resulting assembly path as column
+        # self.content["assembly"] = ""
 
-        # TODO Rename ID, rv_read, fw_read cols to fixed names
+        # Rename ID, rv_read, fw_read cols to fixed names
+        self.content.rename(
+            columns={
+                self.sample_col: "ID",
+                self.fw_col: "fw_reads",
+                self.rev_col: "rv_reads",
+            }
+        )
 
     def write_samplesheet(self):
-        self.content.to_csv("samplesheet.tsv", sep="\t", index=False)
+        self.content.to_csv(CORR_SAMPLESHEET, sep="\t", index=False)
 
     def update_sampledb(self):
 
         if Path(self.sample_db_samplesheet).exists():
             db_content = pd.read_csv(self.sample_db_samplesheet)
-            ## TODO Add samplesheet (only if not in there yet =>)
+            db_content = db_content.append(
+                self.content[~self.content["ID"].isin(db_content["ID"])],
+                ignore_index=True,
+            )
 
+            db_content.to_csv(self.sample_db_samplesheet, sep="\t", index=False)
         else:
-            self.content.to_csv(f"{self.sample_db_samplesheet}", sep="\t", index=False)
+            self.content.to_csv(self.sample_db_samplesheet, sep="\t", index=False)
 
     def _fetch_filepath(self, read_files):
         def simplify_samplenames(filenames: pd.Series) -> pd.Series:
@@ -105,6 +120,8 @@ if __name__ == "__main__":
         description="Read WGS Samplesheets. Find samples listed and save to a masterfile.",
     )
 
+    KNOWN_ARGS = ("samplesheet", "sample_column", "forward_column",
+                "reverse_column", "sample_db_dir", "run_name", "corrected")
     parser.add_argument("samplesheet")
     parser.add_argument("sample_column")
     parser.add_argument("forward_column")
@@ -114,7 +131,6 @@ if __name__ == "__main__":
     parser.add_argument("-c", "--corrected", action="store_true")
 
     args = parser.parse_args()
-
     smpsh = SampleSheet(
         args.samplesheet,
         args.sample_column,

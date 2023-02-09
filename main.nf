@@ -1,6 +1,6 @@
 params.samplesheet = "${projectDir}/data/samplesheet.csv"
 params.outdir = "results"
-params.sampleDatabase = "./sampledb"
+params.sampleDatabase = "${projectDir}/sampledb"
 params.sampleName = "ID"
 params.fw_reads = "fw_reads"
 params.rv_reads = "rv_reads"
@@ -15,8 +15,12 @@ params.trimRight = 0
 params.minLen = 50
 params.maxN = 2
 
+//===== INCLUDE MODULES ==========================================
 include { FASTP; MULTIQC } from './modules/qc' addParams(OUTPUT: "${params.outdir}")
-
+include { READ_SAMPLESHEET } from './modules/samplesheet' addParams(
+    sampleDatabase : "${params.sampleDatabase}", sampleName : "${params.sampleName}",
+    fw_reads : "${params.fw_reads}", rv_reads : "${params.rv_reads}", runName : "${params.runName}")
+// ================================================================
 def helpMessage() {
     log.info"""
      Name: nf-whole-genome-illumina
@@ -66,31 +70,12 @@ if (params.help  || params.h){
     exit 0
 }
 
-process READ_SAMPLESHEET {
-
-    publishDir file("${params.samplesheet}").getParent(), mode: 'copy'
-
-    input:
-    path(samplesheet) 
-
-    output:
-    path "samplesheet.tsv", emit: samplesheetAbsolute
-    //path "database.tsv", emit: database.tsv
-
-    script:
-    """
-    read_samplesheet.py "${params.samplesheet}" "${params.sampleName}" \
-    "${params.fw_reads}" "${params.rv_reads}" "${params.sampleDatabase}" "${params.runName}"
-    """
-
-}
-
 workflow {
     
     paramsUsed()
     
     // Read samplesheet: find and update paths to reads (externalize from nf?)
-    READ_SAMPLESHEET(params.samplesheet) 
+    READ_SAMPLESHEET(params.samplesheet, false, file(params.samplesheet).getParent()) 
 
     // Extract reads from samplesheet
     READ_SAMPLESHEET.out.samplesheetAbsolute
