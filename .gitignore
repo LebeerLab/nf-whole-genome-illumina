@@ -1,0 +1,7 @@
+.prettier*
+.nextflow*
+work
+data/samplesheet.tsv
+*__pycache__*
+results*
+database/

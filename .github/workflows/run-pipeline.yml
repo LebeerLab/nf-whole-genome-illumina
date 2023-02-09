@@ -1,0 +1,18 @@
+name: Run Pipeline
+on:
+  push:
+    branches: ["dev"]
+    
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  run-test-pipeline:
+    name: Run Test Pipeline
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v3
+      - uses: nf-core/setup-nextflow@v1.2.0
+      - name: Run the pipeline
+        run: | 
+         nextflow run ${GITHUB_WORKSPACE}
