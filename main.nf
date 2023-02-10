@@ -1,5 +1,6 @@
 params.samplesheet = "${projectDir}/data/samplesheet.csv"
 params.outdir = "results"
+
 params.sampleName = "ID"
 params.fw_reads = "fw_reads"
 params.rv_reads = "rv_reads"
@@ -19,6 +20,7 @@ include { FASTP; MULTIQC } from './modules/qc' addParams(OUTPUT: "${params.outdi
 include { READ_SAMPLESHEET } from './modules/samplesheet' addParams(
     sampleName : "${params.sampleName}", fw_reads : "${params.fw_reads}", 
     rv_reads : "${params.rv_reads}", runName : "${params.runName}")
+
 // ================================================================
 def helpMessage() {
     log.info"""
@@ -58,7 +60,6 @@ def paramsUsed() {
     fw_reads:         ${params.fw_reads}
     rv_reads:         ${params.rv_reads}
     outdir:           ${params.outdir}
-
     """.stripIndent()
 }
 
@@ -115,6 +116,7 @@ workflow {
     paramsUsed()
     
     // Read samplesheet: find and update paths to reads (externalize from nf?)
+
     READ_SAMPLESHEET(params.samplesheet, file(params.samplesheet).getParent()) 
 
     // Extract reads from samplesheet
@@ -146,4 +148,5 @@ workflow {
         .set{ assembly_ch }
     
     CHECKM(assembly_ch)
+
 }

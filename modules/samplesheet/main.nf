@@ -24,3 +24,4 @@ process READ_SAMPLESHEET {
     -f "${params.fw_reads}" -r "${params.rv_reads}" -n "${params.runName}"
     """
 }
+

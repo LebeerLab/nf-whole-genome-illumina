@@ -12,6 +12,7 @@ DEF_SAMPLE_ID = "ID"
 DEF_FW_READS = "fw_reads"
 DEF_RV_READS = "rv_reads"
 
+
 class SampleSheet:
     def __init__(
         self,
@@ -64,6 +65,7 @@ class SampleSheet:
             .sum(axis=1)
             .map(generate_uqid)
         )
+
 
         # Add resulting assembly path as column
         self.content["assembly"] = os.path.dirname(self.filename).split("/data")[0] + "/results/assembly/contigs.fa"
@@ -123,6 +125,7 @@ if __name__ == "__main__":
         description="Read WGS Samplesheets. Find samples listed and save to a masterfile.",
     )
 
+
     parser.add_argument("-s", "--samplesheet", default=CORR_SAMPLESHEET)
     parser.add_argument("-i", "--sample_column", default=DEF_SAMPLE_ID)
     parser.add_argument("-f", "--forward_column",  default=DEF_FW_READS)
@@ -138,7 +141,6 @@ if __name__ == "__main__":
         args.reverse_column,
         args.sample_db_dir,
         args.run_name,
-        # args.corrected,
     )
 
     smpsh.read_samplesheet()
