@@ -15,4 +15,4 @@ jobs:
       - uses: nf-core/setup-nextflow@v1.2.0
       - name: Run the pipeline
         run: | 
-         nextflow run ${GITHUB_WORKSPACE}
+         nextflow run ${GITHUB_WORKSPACE} -profile github

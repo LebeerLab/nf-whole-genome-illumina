@@ -65,8 +65,8 @@ class SampleSheet:
             .map(generate_uqid)
         )
 
-        # TODO Add resulting assembly path as column
-        # self.content["assembly"] = ""
+        # Add resulting assembly path as column
+        self.content["assembly"] = os.path.dirname(self.filename).split("/data")[0] + "/results/assembly/contigs.fa"
 
         # Rename ID, rv_read, fw_read cols to fixed names
         self.content.rename(

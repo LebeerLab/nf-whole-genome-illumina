@@ -72,21 +72,39 @@ process ASSEMBLY {
 
     tag "${pair_id}" 
 
-    publishDir "${outputDir}/assembly", mode: 'copy'
+    publishDir "${params.outdir}", mode: 'copy'
 
     input:
     tuple val(pair_id), path(reads)
 
     output:
-    path("out")
+    path("assembly")
 
     script:
     def single = reads instanceof Path
 
     def input = !single ? "--R1 '${reads[0]}' --R2 '${reads[1]}'" : "--R1 '${reads}'"
-    //def output = !single ? "-o 'filtered_${pair_id}_fwd.fastq.gz' -O 'filtered_${pair_id}_rev.fastq.gz'" : "-o 'filtered_${pair_id}.fastq.gz'"
     """
-    shovill --outdir out ${input}
+    shovill --outdir assembly ${input} --ram ${task.memory} --cpus ${task.cpus}
+    """
+}
+
+process CHECKM {
+    container "nanozoo/checkm:latest"
+
+    tag "${pair_id}" 
+
+    publishDir "${outdir}/checkM", mode: 'copy'
+
+    input:
+    tuple val(pair_id), path(assemblies)
+
+    output:
+    tuple val(pair_id), path("checkm")
+
+    script:
+    """
+     --outdir assembly ${input} --ram ${task.memory} --cpus ${task.cpus}
     """
 }
 
@@ -123,4 +141,7 @@ workflow {
 
     // Shovil assembly
     ASSEMBLY(filteredReads)
+        .set{ assembly_ch }
+    
+    //CHECKM(assembly_ch)
 }
