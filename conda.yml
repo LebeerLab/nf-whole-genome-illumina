@@ -2,7 +2,6 @@ name: shovil-wgs-illumina
 channels:
   - default
 dependencies:
-  - bioconda::shovil=1.0.4
   - bioconda::fastp=0.23.2
   - bioconda::multiqc=1.13
   - bioconda::prokka=1.14.6
