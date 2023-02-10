@@ -70,6 +70,8 @@ if (params.help  || params.h){
 process ASSEMBLY {
     container "staphb/shovill:latest"
 
+    tag "${pair_id}" 
+
     publishDir "${outputDir}/assembly", mode: 'copy'
 
     input:
