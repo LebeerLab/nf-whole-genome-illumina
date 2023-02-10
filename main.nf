@@ -1,6 +1,5 @@
 params.samplesheet = "${projectDir}/data/samplesheet.csv"
 params.outdir = "results"
-params.sampleDatabase = "${projectDir}/sampledb"
 params.sampleName = "ID"
 params.fw_reads = "fw_reads"
 params.rv_reads = "rv_reads"
@@ -18,8 +17,8 @@ params.maxN = 2
 //===== INCLUDE MODULES ==========================================
 include { FASTP; MULTIQC } from './modules/qc' addParams(OUTPUT: "${params.outdir}")
 include { READ_SAMPLESHEET } from './modules/samplesheet' addParams(
-    sampleDatabase : "${params.sampleDatabase}", sampleName : "${params.sampleName}",
-    fw_reads : "${params.fw_reads}", rv_reads : "${params.rv_reads}", runName : "${params.runName}")
+    sampleName : "${params.sampleName}", fw_reads : "${params.fw_reads}", 
+    rv_reads : "${params.rv_reads}", runName : "${params.runName}")
 // ================================================================
 def helpMessage() {
     log.info"""
@@ -31,7 +30,6 @@ def helpMessage() {
       --sampleName              Column with the name of the sample. Default: ${params.sampleName}
       --fw_reads                Column name of the forward read. Default: ${params.fw_reads}
       --rv_reads               Column name of the reverse read. Default: ${params.rv_reads}
-      --sampleDatabase          Path to a tsv file to store the location of the result and input. Default: ${params.sampleDatabase}
       --runName                 Name of the run. Default: ${params.runName}
 
     Optional arguments:
@@ -60,7 +58,6 @@ def paramsUsed() {
     fw_reads:         ${params.fw_reads}
     rv_reads:         ${params.rv_reads}
     outdir:           ${params.outdir}
-    sampleDatabase:   ${params.sampleDatabase}
 
     """.stripIndent()
 }
@@ -70,12 +67,33 @@ if (params.help  || params.h){
     exit 0
 }
 
+process ASSEMBLY {
+    container "staphb/shovill:latest"
+
+    publishDir "${outputDir}/assembly", mode: 'copy'
+
+    input:
+    tuple val(pair_id), path(reads)
+
+    output:
+    path("out")
+
+    script:
+    def single = reads instanceof Path
+
+    def input = !single ? "--R1 '${reads[0]}' --R2 '${reads[1]}'" : "--R1 '${reads}'"
+    //def output = !single ? "-o 'filtered_${pair_id}_fwd.fastq.gz' -O 'filtered_${pair_id}_rev.fastq.gz'" : "-o 'filtered_${pair_id}.fastq.gz'"
+    """
+    shovill --outdir out ${input}
+    """
+}
+
 workflow {
     
     paramsUsed()
     
     // Read samplesheet: find and update paths to reads (externalize from nf?)
-    READ_SAMPLESHEET(params.samplesheet, false, file(params.samplesheet).getParent()) 
+    READ_SAMPLESHEET(params.samplesheet, file(params.samplesheet).getParent()) 
 
     // Extract reads from samplesheet
     READ_SAMPLESHEET.out.samplesheetAbsolute
@@ -101,4 +119,6 @@ workflow {
         filteredReads = reads_ch
     }
 
+    // Shovil assembly
+    ASSEMBLY(filteredReads)
 }
