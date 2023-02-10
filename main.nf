@@ -1,6 +1,6 @@
 params.samplesheet = "${projectDir}/data/samplesheet.csv"
 params.outdir = "results"
-params.sampleDatabase = "${projectDir}/sampledb"
+
 params.sampleName = "ID"
 params.fw_reads = "fw_reads"
 params.rv_reads = "rv_reads"
@@ -18,8 +18,9 @@ params.maxN = 2
 //===== INCLUDE MODULES ==========================================
 include { FASTP; MULTIQC } from './modules/qc' addParams(OUTPUT: "${params.outdir}")
 include { READ_SAMPLESHEET } from './modules/samplesheet' addParams(
-    sampleDatabase : "${params.sampleDatabase}", sampleName : "${params.sampleName}",
-    fw_reads : "${params.fw_reads}", rv_reads : "${params.rv_reads}", runName : "${params.runName}")
+    sampleName : "${params.sampleName}", fw_reads : "${params.fw_reads}", 
+    rv_reads : "${params.rv_reads}", runName : "${params.runName}")
+
 // ================================================================
 def helpMessage() {
     log.info"""
@@ -31,7 +32,6 @@ def helpMessage() {
       --sampleName              Column with the name of the sample. Default: ${params.sampleName}
       --fw_reads                Column name of the forward read. Default: ${params.fw_reads}
       --rv_reads               Column name of the reverse read. Default: ${params.rv_reads}
-      --sampleDatabase          Path to a tsv file to store the location of the result and input. Default: ${params.sampleDatabase}
       --runName                 Name of the run. Default: ${params.runName}
 
     Optional arguments:
@@ -60,8 +60,6 @@ def paramsUsed() {
     fw_reads:         ${params.fw_reads}
     rv_reads:         ${params.rv_reads}
     outdir:           ${params.outdir}
-    sampleDatabase:   ${params.sampleDatabase}
-
     """.stripIndent()
 }
 
@@ -70,12 +68,56 @@ if (params.help  || params.h){
     exit 0
 }
 
+process ASSEMBLY {
+    container "staphb/shovill:latest"
+
+    tag "${pair_id}" 
+
+    publishDir "${params.outdir}", mode: 'copy'
+
+    input:
+    tuple val(pair_id), path(reads)
+
+    output:
+    tuple val(pair_id), path("assembly")
+
+    script:
+    def single = reads instanceof Path
+
+    def input = !single ? "--R1 '${reads[0]}' --R2 '${reads[1]}'" : "--R1 '${reads}'"
+    """
+    shovill --outdir assembly ${input} --ram ${task.memory} --cpus ${task.cpus}
+    """
+}
+
+process CHECKM {
+    container "nanozoo/checkm:latest"
+
+    tag "${pair_id}" 
+
+    publishDir "${params.outdir}", mode: 'copy'
+
+    input:
+    tuple val(pair_id), path(assembly)
+
+    output:
+    tuple val(pair_id), path("results.tsv")
+
+    script:
+    """
+    mv "${assembly}/contigs.fa" "${assembly}/contigs.fna" 
+    checkm lineage_wf -t ${task.cpus} ${assembly} lin --reduced_tree
+    checkm qa lin/lineage.ms lin -t ${task.cpus} -o 2 --tab_table -f results.tsv
+    """
+}
+
 workflow {
     
     paramsUsed()
     
     // Read samplesheet: find and update paths to reads (externalize from nf?)
-    READ_SAMPLESHEET(params.samplesheet, false, file(params.samplesheet).getParent()) 
+
+    READ_SAMPLESHEET(params.samplesheet, file(params.samplesheet).getParent()) 
 
     // Extract reads from samplesheet
     READ_SAMPLESHEET.out.samplesheetAbsolute
@@ -100,5 +142,11 @@ workflow {
     } else {
         filteredReads = reads_ch
     }
+
+    // Shovil assembly
+    ASSEMBLY(filteredReads)
+        .set{ assembly_ch }
+    
+    CHECKM(assembly_ch)
 
 }

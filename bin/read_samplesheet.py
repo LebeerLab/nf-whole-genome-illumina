@@ -8,33 +8,37 @@ import pandas as pd
 from utils import generate_uqid
 
 CORR_SAMPLESHEET = "samplesheet.tsv"
+DEF_SAMPLE_ID = "ID"
+DEF_FW_READS = "fw_reads"
+DEF_RV_READS = "rv_reads"
+
 
 class SampleSheet:
     def __init__(
         self,
-        samplesheet,
-        sample_col,
-        fw_col,
-        rev_col,
-        sample_db_dir,
-        run_id,
-        corrected_sheet=False,
+        samplesheet = CORR_SAMPLESHEET,
+        sample_col = DEF_SAMPLE_ID,
+        fw_col=DEF_FW_READS,
+        rev_col=DEF_RV_READS,
+        sample_db_dir=None,
+        run_id=None,
     ) -> None:
         self.sample_col = sample_col
         self.fw_col = fw_col
         self.rev_col = rev_col
-        self.sample_db_samplesheet = os.path.join(sample_db_dir, "sampledb.tsv")
         self.run_id = run_id
-        self.corrected_sheet = corrected_sheet
-        if corrected_sheet:
+        if sample_db_dir is not None:
+            self.corrected_sheet = True
+            self.sample_db_samplesheet = os.path.join(sample_db_dir, "sampledb.tsv")
             self.filename = os.path.join(os.path.dirname(samplesheet), CORR_SAMPLESHEET)
+            samples_db_dir_path = Path(sample_db_dir)
+
+            if not samples_db_dir_path.exists():
+                os.makedirs(samples_db_dir_path, exist_ok=True)
         else:
             self.filename = samplesheet
+            self.corrected_sheet = False
         
-        samples_db_dir_path = Path(sample_db_dir)
-
-        if not samples_db_dir_path.exists():
-            os.makedirs(samples_db_dir_path, exist_ok=True)
 
     def read_samplesheet(self):
 
@@ -62,8 +66,9 @@ class SampleSheet:
             .map(generate_uqid)
         )
 
-        # TODO Add resulting assembly path as column
-        # self.content["assembly"] = ""
+
+        # Add resulting assembly path as column
+        self.content["assembly"] = os.path.dirname(self.filename).split("/data")[0] + "/results/assembly/contigs.fa"
 
         # Rename ID, rv_read, fw_read cols to fixed names
         self.content.rename(
@@ -120,15 +125,13 @@ if __name__ == "__main__":
         description="Read WGS Samplesheets. Find samples listed and save to a masterfile.",
     )
 
-    KNOWN_ARGS = ("samplesheet", "sample_column", "forward_column",
-                "reverse_column", "sample_db_dir", "run_name", "corrected")
-    parser.add_argument("samplesheet")
-    parser.add_argument("sample_column")
-    parser.add_argument("forward_column")
-    parser.add_argument("reverse_column")
-    parser.add_argument("sample_db_dir")
-    parser.add_argument("run_name")
-    parser.add_argument("-c", "--corrected", action="store_true")
+
+    parser.add_argument("-s", "--samplesheet", default=CORR_SAMPLESHEET)
+    parser.add_argument("-i", "--sample_column", default=DEF_SAMPLE_ID)
+    parser.add_argument("-f", "--forward_column",  default=DEF_FW_READS)
+    parser.add_argument("-r", "--reverse_column", default=DEF_RV_READS)
+    parser.add_argument("-d", "--sample_db_dir", default=None)
+    parser.add_argument("-n", "--run_name", default=None)
 
     args = parser.parse_args()
     smpsh = SampleSheet(
@@ -138,7 +141,6 @@ if __name__ == "__main__":
         args.reverse_column,
         args.sample_db_dir,
         args.run_name,
-        args.corrected,
     )
 
     smpsh.read_samplesheet()
