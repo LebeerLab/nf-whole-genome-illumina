@@ -78,7 +78,7 @@ process ASSEMBLY {
     tuple val(pair_id), path(reads)
 
     output:
-    path("assembly")
+    tuple val(pair_id), path("assembly")
 
     script:
     def single = reads instanceof Path
@@ -94,17 +94,19 @@ process CHECKM {
 
     tag "${pair_id}" 
 
-    publishDir "${outdir}/checkM", mode: 'copy'
+    publishDir "${params.outdir}", mode: 'copy'
 
     input:
-    tuple val(pair_id), path(assemblies)
+    tuple val(pair_id), path(assembly)
 
     output:
-    tuple val(pair_id), path("checkm")
+    tuple val(pair_id), path("results.tsv")
 
     script:
     """
-     --outdir assembly ${input} --ram ${task.memory} --cpus ${task.cpus}
+    mv "${assembly}/contigs.fa" "${assembly}/contigs.fna" 
+    checkm lineage_wf -t ${task.cpus} ${assembly} lin --reduced_tree
+    checkm qa lin/lineage.ms lin -t ${task.cpus} -o 2 --tab_table -f results.tsv
     """
 }
 
@@ -143,5 +145,5 @@ workflow {
     ASSEMBLY(filteredReads)
         .set{ assembly_ch }
     
-    //CHECKM(assembly_ch)
+    CHECKM(assembly_ch)
 }
