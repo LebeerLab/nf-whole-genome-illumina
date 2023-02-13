@@ -73,7 +73,7 @@ process ASSEMBLY {
 
     tag "${pair_id}" 
 
-    publishDir "${params.outdir}/${pair_id}", mode: 'copy'
+    publishDir "${params.outdir}/${pair_id}/${params.runName}", mode: 'copy'
 
     input:
     tuple val(pair_id), path(reads)
@@ -87,27 +87,48 @@ process ASSEMBLY {
     def input = !single ? "--R1 '${reads[0]}' --R2 '${reads[1]}'" : "--R1 '${reads}'"
     """
     shovill --outdir assembly ${input} --ram ${task.memory} --cpus ${task.cpus}
+    mv assembly/contigs.fa "assembly/${pair_id}_contigs.fna"
     """
 }
 
 process CHECKM {
     container "nanozoo/checkm:latest"
 
-    errorStrategy "ignore"
+    //errorStrategy "ignore"
     tag "${pair_id}" 
 
-    publishDir "${params.outdir}/${pair_id}", mode: 'copy'
+    publishDir "${params.outdir}/${pair_id}/${params.runName}", mode: 'copy'
 
     input:
     tuple val(pair_id), path(assembly)
 
     output:
-    tuple val(pair_id), path("results.tsv")
+    tuple val(pair_id), path("checkm_results.tsv")
 
     script:
     """ 
-    checkm lineage_wf -t ${task.cpus} -x fa ${assembly} lin --reduced_tree
-    checkm qa lin/lineage.ms lin -t ${task.cpus} -o 2 --tab_table -f results.tsv
+    checkm lineage_wf ${assembly} lin --reduced_tree -t ${task.cpus}
+    checkm qa lin/lineage.ms lin -t ${task.cpus} -o 2 --tab_table -f checkm_results.tsv
+    """
+}
+
+
+process ANNOTATION {
+    container "staphb/prokka"
+
+    tag "${pair_id}"
+    publishDir "${params.outdir}/${pair_id}/${params.runName}", mode: 'copy'
+
+    input:
+    tuple val(pair_id), path(assembly)
+
+    output:
+    tuple val(pair_id), path("annotation")
+    script:
+    """
+    prokka "${assembly}/${pair_id}_contigs.fna" --outdir annotation --prefix "${pair_id}" \
+    --locustag "${pair_id}" --compliant --cpus ${task.cpus} --quiet > prokka.out
+    gzip -r "annotation"
     """
 }
 
@@ -147,6 +168,8 @@ workflow {
     ASSEMBLY(filteredReads)
         .set{ assembly_ch }
     
+    // QC  
     CHECKM(assembly_ch)
-
+    // Annotation genes
+    ANNOTATION(assembly_ch)
 }
