@@ -68,7 +68,8 @@ class SampleSheet:
 
 
         # Add resulting assembly path as column
-        self.content["assembly"] = os.path.dirname(self.filename).split("/data")[0] + "/results/assembly/contigs.fa"
+        contig_path = f"/results/{self.sample_col}/assembly/contigs.fa"
+        self.content["assembly"] = os.path.dirname(self.filename).split("/data")[0] + contig_path
 
         # Rename ID, rv_read, fw_read cols to fixed names
         self.content.rename(
