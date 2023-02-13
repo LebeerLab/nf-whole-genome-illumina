@@ -111,6 +111,26 @@ process CHECKM {
     """
 }
 
+process ANNOTATION {
+    container "theoaphidian/wgs-illumina"
+
+    tag "${pair_id}"
+    publishDir "${params.outdir}/annotation", mode: 'copy'
+
+    input:
+    tuple val(pair_id), path(assembly)
+
+
+    output:
+    tuple val(pair_id), path("*.gz")
+    script:
+    """
+    prokka "${assembly}/contigs.fa" --outdir annotation --prefix "${pair_id}" \
+    --locustag "${pair_id}" --compliant --cpus ${task.cpus} --quiet > prokka.out
+    gzip "annotation/${pair_id}.*"
+    """
+}
+
 workflow {
     
     paramsUsed()
@@ -148,5 +168,7 @@ workflow {
         .set{ assembly_ch }
     
     CHECKM(assembly_ch)
+
+    ANNOTATION(assembly_ch)
 
 }
