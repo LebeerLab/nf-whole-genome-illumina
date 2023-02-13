@@ -170,5 +170,4 @@ workflow {
     CHECKM(assembly_ch)
 
     ANNOTATION(assembly_ch)
-
 }
