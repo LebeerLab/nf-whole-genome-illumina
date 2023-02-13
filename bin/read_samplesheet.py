@@ -86,7 +86,7 @@ class SampleSheet:
     def update_sampledb(self):
 
         if Path(self.sample_db_samplesheet).exists():
-            db_content = pd.read_csv(self.sample_db_samplesheet)
+            db_content = pd.read_table(self.sample_db_samplesheet)
             db_content = db_content.append(
                 self.content[~self.content["ID"].isin(db_content["ID"])],
                 ignore_index=True,
