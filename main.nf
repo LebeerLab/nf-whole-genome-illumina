@@ -106,7 +106,7 @@ process CHECKM {
 
     script:
     """ 
-    checkm lineage_wf -t ${task.cpus} ${assembly} lin --reduced_tree
+    checkm lineage_wf -t ${task.cpus} -x fa ${assembly} lin --reduced_tree
     checkm qa lin/lineage.ms lin -t ${task.cpus} -o 2 --tab_table -f results.tsv
     """
 }
