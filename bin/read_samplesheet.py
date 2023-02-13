@@ -66,11 +66,6 @@ class SampleSheet:
             .map(generate_uqid)
         )
 
-
-        # Add resulting assembly path as column
-        contig_path = f"/results/{self.sample_col}/assembly/contigs.fa"
-        self.content["assembly"] = os.path.dirname(self.filename).split("/data")[0] + contig_path
-
         # Rename ID, rv_read, fw_read cols to fixed names
         self.content.rename(
             columns={
@@ -79,6 +74,11 @@ class SampleSheet:
                 self.rev_col: "rv_reads",
             }
         )
+
+        # Add resulting assembly path as column
+        root_contig = os.path.dirname(self.filename).split("/data")[0] + "/results/"
+        self.content["assembly"] = [f"{root_contig}{x}/assembly/contigs.fa" for x in self.content["ID"]]
+
 
     def write_samplesheet(self):
         self.content.to_csv(CORR_SAMPLESHEET, sep="\t", index=False)
