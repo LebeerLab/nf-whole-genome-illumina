@@ -16,8 +16,8 @@ DEF_RV_READS = "rv_reads"
 class SampleSheet:
     def __init__(
         self,
-        samplesheet = CORR_SAMPLESHEET,
-        sample_col = DEF_SAMPLE_ID,
+        samplesheet=CORR_SAMPLESHEET,
+        sample_col=DEF_SAMPLE_ID,
         fw_col=DEF_FW_READS,
         rev_col=DEF_RV_READS,
         sample_db_dir=None,
@@ -38,7 +38,6 @@ class SampleSheet:
         else:
             self.filename = samplesheet
             self.corrected_sheet = False
-        
 
     def read_samplesheet(self):
 
@@ -76,9 +75,12 @@ class SampleSheet:
         )
 
         # Add resulting assembly path as column
+        # RESULTS / ID / RUN / ASSEMBLY / ID_contigs.fna
         root_contig = os.path.dirname(self.filename).split("/data")[0] + "/results/"
-        self.content["assembly"] = [f"{root_contig}{x}/assembly/contigs.fa" for x in self.content["ID"]]
-
+        self.content["assembly"] = [
+            f"{root_contig}{id}/{run}/assembly/{id}_contigs.fna"
+            for id, run in zip(self.content["ID"], self.content["run_id"])
+        ]
 
     def write_samplesheet(self):
         self.content.to_csv(CORR_SAMPLESHEET, sep="\t", index=False)
@@ -126,10 +128,9 @@ if __name__ == "__main__":
         description="Read WGS Samplesheets. Find samples listed and save to a masterfile.",
     )
 
-
     parser.add_argument("-s", "--samplesheet", default=CORR_SAMPLESHEET)
     parser.add_argument("-i", "--sample_column", default=DEF_SAMPLE_ID)
-    parser.add_argument("-f", "--forward_column",  default=DEF_FW_READS)
+    parser.add_argument("-f", "--forward_column", default=DEF_FW_READS)
     parser.add_argument("-r", "--reverse_column", default=DEF_RV_READS)
     parser.add_argument("-d", "--sample_db_dir", default=None)
     parser.add_argument("-n", "--run_name", default=None)
