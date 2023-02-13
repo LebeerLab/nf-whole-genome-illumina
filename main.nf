@@ -104,8 +104,7 @@ process CHECKM {
     tuple val(pair_id), path("results.tsv")
 
     script:
-    """
-    mv "${assembly}/contigs.fa" "${assembly}/contigs.fna" 
+    """ 
     checkm lineage_wf -t ${task.cpus} ${assembly} lin --reduced_tree
     checkm qa lin/lineage.ms lin -t ${task.cpus} -o 2 --tab_table -f results.tsv
     """
