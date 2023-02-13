@@ -111,7 +111,7 @@ process CHECKM {
     """
 }
 
-<<<<<<< HEAD
+
 process ANNOTATION {
     container "staphb/prokka"
 
@@ -170,8 +170,5 @@ workflow {
     
     CHECKM(assembly_ch)
 
-<<<<<<< HEAD
     ANNOTATION(assembly_ch)
-=======
->>>>>>> main
 }
