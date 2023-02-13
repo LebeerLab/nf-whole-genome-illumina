@@ -112,7 +112,7 @@ process CHECKM {
 }
 
 process ANNOTATION {
-    container "theoaphidian/wgs-illumina"
+    container "staphb/prokka"
 
     tag "${pair_id}"
     publishDir "${params.outdir}/annotation", mode: 'copy'
