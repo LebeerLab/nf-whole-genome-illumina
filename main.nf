@@ -93,6 +93,7 @@ process ASSEMBLY {
 process CHECKM {
     container "nanozoo/checkm:latest"
 
+    errorStrategy "ignore"
     tag "${pair_id}" 
 
     publishDir "${params.outdir}/${pair_id}", mode: 'copy'
