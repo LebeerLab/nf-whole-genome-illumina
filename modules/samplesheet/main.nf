@@ -16,7 +16,7 @@ process READ_SAMPLESHEET {
     path(outputDir) // where to save resulting tsv
 
     output:
-    path "*.tsv", emit: samplesheetAbsolute
+    path "samplesheet.tsv", emit: samplesheetAbsolute
     
     script:
     """
