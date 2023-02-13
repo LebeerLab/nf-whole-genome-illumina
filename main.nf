@@ -132,8 +132,6 @@ process ANNOTATION {
     """
 }
 
-=======
->>>>>>> main
 workflow {
     
     paramsUsed()
