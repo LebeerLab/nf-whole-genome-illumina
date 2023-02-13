@@ -73,7 +73,7 @@ process ASSEMBLY {
 
     tag "${pair_id}" 
 
-    publishDir "${params.outdir}", mode: 'copy'
+    publishDir "${params.outdir}/${pair_id}", mode: 'copy'
 
     input:
     tuple val(pair_id), path(reads)
