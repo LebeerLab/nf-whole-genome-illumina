@@ -5,6 +5,7 @@ params.sampleName = "ID"
 params.fw_reads = "fw_reads"
 params.rv_reads = "rv_reads"
 params.runName = "run01"
+params.gtdb_db = null
 
 params.debug = false
 
@@ -44,7 +45,7 @@ def helpMessage() {
       --trimLeft --trimRight    Trimming on left or right side of reads by fastp. Default = ${params.trimLeft}
       --minLen                  Minimum length of reads kept by fastp. Default = ${params.minLen}
       --maxN                    Maximum amount of uncalled bases N to be kept by fastp. Default = ${params.maxN}
-
+      --gtdb_db                 Path to gtdb reference database. Default = ${params.gtdb_db}
     Usage example:
         nextflow run main.nf --samplesheet '/path/to/samplesheet'
     """.stripIndent()
@@ -60,6 +61,7 @@ def paramsUsed() {
     fw_reads:         ${params.fw_reads}
     rv_reads:         ${params.rv_reads}
     outdir:           ${params.outdir}
+    gtdb_db:          ${params.gtdb_db}
     """.stripIndent()
 }
 
@@ -132,6 +134,29 @@ process ANNOTATION {
     """
 }
 
+process CLASSIFICATION {
+    container "ecogenomic/gtdbtk"
+
+    tag "${pair_id}"
+    publishDir "${params.outdir}/${pair_id}/${params.runName}", mode: 'copy'
+
+    input:
+    tuple val(pair_id), path(assembly)
+
+    output:
+    tuple val(pair_id), path("annotation")
+    script:
+    when: params.gtdb_db != null
+    """
+    export GTDBTK_DATA_PATH=${params.gtdb_db}
+    gtdbtk classify_wf \\
+    --genome_dir assembly \\
+    --prefix "${pair_id}_gtdbtk" \\
+    --outdir "\${PWD}" \\
+    --cpus $task.cpus \\
+    """
+}
+
 workflow {
     
     paramsUsed()
@@ -172,4 +197,7 @@ workflow {
     CHECKM(assembly_ch)
     // Annotation genes
     ANNOTATION(assembly_ch)
+
+    // Classification
+    CLASSIFICATION(assembly_ch)
 }
