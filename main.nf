@@ -134,6 +134,44 @@ process ANNOTATION {
     """
 }
 
+process DETECT_CHIMERS_CONTAMINATION {
+    container "metashot/gunc"
+
+    tag "${pair_id}"
+    publishDir "${params.outdir}/${pair_id}/${params.runName}", mode: 'copy'
+
+    input:
+    tuple val(pair_id), path(assembly)
+
+    output:
+    tuple val(pair_id), path('gunc.out')
+
+    script:
+    when: params.gtdb_db != null
+    """
+    gunc -i assembly -r "${params.gtdb_db}"
+    """
+}
+
+process MERGE_QC {
+    container "metashot/gunc"
+
+    tag "${pair_id}"
+    publishDir "${params.outdir}/${pair_id}/${params.runName}", mode: 'copy'
+
+    input:
+    tuple val(pair_id), path(checkm_f), path(gunc_f)
+
+    output:
+    tuple val(pair_id), path(qc_f)
+
+    script:
+    when: params.gtdb_db != null
+    """
+    gunc merge_checkm --gunc_file gunc_f --checkm_file checkm_f --out_dir qc_f
+    """
+}
+
 process CLASSIFICATION {
     container "ecogenomic/gtdbtk"
 
@@ -148,7 +186,7 @@ process CLASSIFICATION {
     script:
     when: params.gtdb_db != null
     """
-    export GTDBTK_DATA_PATH=${params.gtdb_db}
+    export GTDBTK_DATA_PATH="${params.gtdb_db}"
     gtdbtk classify_wf \\
     --genome_dir assembly \\
     --prefix "${pair_id}_gtdbtk" \\
@@ -198,6 +236,11 @@ workflow {
     
     // QC  
     CHECKM(assembly_ch)
+        .set{ checkm_ch }
+    DETECT_CHIMERS_CONTAMINATION(assembly_ch)
+        .set { gunc_ch }
+    //MERGE_QC(checkm_ch.join(gunc_ch))
+
     // Annotation genes
     ANNOTATION(assembly_ch)
 
