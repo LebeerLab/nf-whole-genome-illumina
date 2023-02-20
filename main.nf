@@ -173,27 +173,25 @@ process MERGE_QC {
 }
 
 process CLASSIFICATION {
-    container "ecogenomic/gtdbtk"
+    container "theoaphidian/gtdbtk-entry"
+    containerOptions "-v ${params.gtdb_db}:/refdata"
 
     tag "${pair_id}"
     publishDir "${params.outdir}/${pair_id}/${params.runName}", mode: 'copy'
 
     input:
     tuple val(pair_id), path(assembly)
+    path(gtdb_db)
 
     output:
-    tuple val(pair_id), path("annotation")
+    tuple val(pair_id), path(output)
     script:
     when: params.gtdb_db != null
     """
-    export GTDBTK_DATA_PATH="${params.gtdb_db}"
-    gtdbtk classify_wf \\
-    --genome_dir assembly \\
-    --prefix "${pair_id}_gtdbtk" \\
-    --outdir "\${PWD}" \\
-    --cpus $task.cpus \\
+    gtdbtk classify_wf --genome_dir assembly --prefix "${pair_id}_gtdbtk" --out_dir "output" --cpus $task.cpus --mash_db "mdb"
     """
-}
+}    
+
 
 workflow {
     
@@ -237,13 +235,13 @@ workflow {
     // QC  
     CHECKM(assembly_ch)
         .set{ checkm_ch }
-    DETECT_CHIMERS_CONTAMINATION(assembly_ch)
-        .set { gunc_ch }
+    //DETECT_CHIMERS_CONTAMINATION(assembly_ch)
+    //    .set { gunc_ch }
     //MERGE_QC(checkm_ch.join(gunc_ch))
 
     // Annotation genes
     ANNOTATION(assembly_ch)
 
     // Classification
-    CLASSIFICATION(assembly_ch)
+    CLASSIFICATION(assembly_ch, file(params.gtdb_db))
 }
