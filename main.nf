@@ -162,14 +162,17 @@ workflow {
     paramsUsed()
     
     // Read samplesheet: find and update paths to reads (externalize from nf?)
+    if (!params.skip_samplesheet) {
+    	READ_SAMPLESHEET(params.samplesheet, file(params.samplesheet).getParent()) 
 
-    READ_SAMPLESHEET(params.samplesheet, file(params.samplesheet).getParent()) 
-
-    // Extract reads from samplesheet
-    READ_SAMPLESHEET.out.samplesheetAbsolute
-        .splitCsv(header: true, sep: "\t") 
-        .map {row -> tuple(row.ID, tuple(file(row.fw_reads), file(row.rv_reads)))}
-        .set{reads_ch}
+    	// Extract reads from samplesheet
+    	READ_SAMPLESHEET.out.samplesheetAbsolute
+        	.splitCsv(header: true, sep: "\t") 
+        	.map {row -> tuple(row.ID, tuple(file(row.fw_reads), file(row.rv_reads)))}
+        	.set{reads_ch}
+    } else {
+	reads_ch = Channel.fromFilePairs(params.reads)
+    }
 
     if (!params.skip_fastp){
 
