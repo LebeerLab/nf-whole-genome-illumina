@@ -5,7 +5,10 @@ params.sampleName = "ID"
 params.fw_reads = "fw_reads"
 params.rv_reads = "rv_reads"
 params.runName = "run01"
+
 params.gtdb_db = null
+params.mash_db = "mdb"
+params.gunc_db = null
 
 params.debug = false
 
@@ -15,6 +18,7 @@ params.trimLeft = 0
 params.trimRight = 0
 params.minLen = 50
 params.maxN = 2
+
 
 //===== INCLUDE MODULES ==========================================
 include { FASTP; MULTIQC } from './modules/qc' addParams(OUTPUT: "${params.outdir}")
@@ -32,8 +36,11 @@ def helpMessage() {
       --samplesheet             Path to the samplesheet containing the reads to be assembled. Default: ${params.samplesheet}
       --sampleName              Column with the name of the sample. Default: ${params.sampleName}
       --fw_reads                Column name of the forward read. Default: ${params.fw_reads}
-      --rv_reads               Column name of the reverse read. Default: ${params.rv_reads}
+      --rv_reads                Column name of the reverse read. Default: ${params.rv_reads}
       --runName                 Name of the run. Default: ${params.runName}
+      --gtdb_db                 Path to gtdb reference database. Default = ${params.gtdb_db}
+      --gunc_db                 Path to a gunc reference database. Default = ${params.gunc_db}
+      --mash_db                 Path to the mash db made from the gtdb_db. Leave as is if you want the pipeline to generate this file (takes 45 minutes). Default = ${params.mash_db}
 
     Optional arguments:
 
@@ -45,7 +52,6 @@ def helpMessage() {
       --trimLeft --trimRight    Trimming on left or right side of reads by fastp. Default = ${params.trimLeft}
       --minLen                  Minimum length of reads kept by fastp. Default = ${params.minLen}
       --maxN                    Maximum amount of uncalled bases N to be kept by fastp. Default = ${params.maxN}
-      --gtdb_db                 Path to gtdb reference database. Default = ${params.gtdb_db}
     Usage example:
         nextflow run main.nf --samplesheet '/path/to/samplesheet'
     """.stripIndent()
@@ -62,6 +68,7 @@ def paramsUsed() {
     rv_reads:         ${params.rv_reads}
     outdir:           ${params.outdir}
     gtdb_db:          ${params.gtdb_db}
+    gunc_db:          ${params.gunc_db}
     """.stripIndent()
 }
 
@@ -135,7 +142,7 @@ process ANNOTATION {
 }
 
 process DETECT_CHIMERS_CONTAMINATION {
-    container "metashot/gunc"
+    container "metashot/gunc:1.0.5-1"
 
     tag "${pair_id}"
     publishDir "${params.outdir}/${pair_id}/${params.runName}", mode: 'copy'
@@ -147,14 +154,13 @@ process DETECT_CHIMERS_CONTAMINATION {
     tuple val(pair_id), path('gunc.out')
 
     script:
-    when: params.gtdb_db != null
     """
-    gunc -i assembly -r "${params.gtdb_db}"
+    gunc run -i assembly -r "${params.gunc_db}"
     """
 }
 
 process MERGE_QC {
-    container "metashot/gunc"
+    container "metashot/gunc:1.0.5-1"
 
     tag "${pair_id}"
     publishDir "${params.outdir}/${pair_id}/${params.runName}", mode: 'copy'
@@ -166,7 +172,6 @@ process MERGE_QC {
     tuple val(pair_id), path(qc_f)
 
     script:
-    when: params.gtdb_db != null
     """
     gunc merge_checkm --gunc_file gunc_f --checkm_file checkm_f --out_dir qc_f
     """
@@ -182,13 +187,13 @@ process CLASSIFICATION {
     input:
     tuple val(pair_id), path(assembly)
     path(gtdb_db)
+    path(mash_db)
 
     output:
     tuple val(pair_id), path(output)
     script:
-    when: params.gtdb_db != null
     """
-    gtdbtk classify_wf --genome_dir assembly --prefix "${pair_id}_gtdbtk" --out_dir "output" --cpus $task.cpus --mash_db "mdb"
+    gtdbtk classify_wf --genome_dir assembly --prefix "${pair_id}_gtdbtk" --out_dir "output" --cpus $task.cpus --mash_db mash_db
     """
 }    
 
@@ -235,14 +240,15 @@ workflow {
     // QC  
     CHECKM(assembly_ch)
         .set{ checkm_ch }
-    //DETECT_CHIMERS_CONTAMINATION(assembly_ch)
-    //    .set { gunc_ch }
-    //MERGE_QC(checkm_ch.join(gunc_ch))
-
+    if (params.gunc_db != null) {
+        DETECT_CHIMERS_CONTAMINATION(assembly_ch)
+            .set { gunc_ch }
+        MERGE_QC(checkm_ch.join(gunc_ch))
+    }
     // Annotation genes
     ANNOTATION(assembly_ch)
     if (params.gtdb_db != null) {
-    // Classification
-    CLASSIFICATION(assembly_ch, file(params.gtdb_db))
+        // Classification
+        CLASSIFICATION(assembly_ch, file(params.gtdb_db), file(params.mash_db))
     }
 }
