@@ -241,7 +241,8 @@ workflow {
 
     // Annotation genes
     ANNOTATION(assembly_ch)
-
+    if (params.gtdb_db != null) {
     // Classification
     CLASSIFICATION(assembly_ch, file(params.gtdb_db))
+    }
 }
