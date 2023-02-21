@@ -149,13 +149,14 @@ process DETECT_CHIMERS_CONTAMINATION {
 
     input:
     tuple val(pair_id), path(assembly)
+    path(guncdb)
 
     output:
     tuple val(pair_id), path('gunc.out')
 
     script:
     """
-    gunc run -i assembly -r "${params.gunc_db}"
+    gunc run --input_dir assembly -r ${guncdb} --file_suffix fna
     """
 }
 
@@ -178,6 +179,7 @@ process MERGE_QC {
 }
 
 process CLASSIFICATION {
+    errorStrategy 'ignore'
     container "theoaphidian/gtdbtk-entry"
     containerOptions "-v ${params.gtdb_db}:/refdata"
 
@@ -241,7 +243,7 @@ workflow {
     CHECKM(assembly_ch)
         .set{ checkm_ch }
     if (params.gunc_db != null) {
-        DETECT_CHIMERS_CONTAMINATION(assembly_ch)
+        DETECT_CHIMERS_CONTAMINATION(assembly_ch, file(params.gunc_db))
             .set { gunc_ch }
         MERGE_QC(checkm_ch.join(gunc_ch))
     }
