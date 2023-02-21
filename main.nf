@@ -13,12 +13,16 @@ params.gunc_db = null
 params.debug = false
 
 params.skip_fastp = false
+params.skip_samplesheet = false
 params.truncLen = 0
 params.trimLeft = 0
 params.trimRight = 0
 params.minLen = 50
 params.maxN = 2
 
+params.depth = 150
+params.minLenContig = 0
+params.minCov = 2
 
 //===== INCLUDE MODULES ==========================================
 include { FASTP; MULTIQC } from './modules/qc' addParams(OUTPUT: "${params.outdir}")
@@ -52,6 +56,11 @@ def helpMessage() {
       --trimLeft --trimRight    Trimming on left or right side of reads by fastp. Default = ${params.trimLeft}
       --minLen                  Minimum length of reads kept by fastp. Default = ${params.minLen}
       --maxN                    Maximum amount of uncalled bases N to be kept by fastp. Default = ${params.maxN}
+    
+      --depth                   Subsample reads to this depth. Disable with --depth 0. Default = ${params.depth}
+      --minLenContig            Minimum contig length. Set to 0 for automatic determination. Default = ${params.minLenContig}
+      --minCov                  Minimumcontig coverage. Set to 0 for automatic determination. Default = ${params.minCov}
+    
     Usage example:
         nextflow run main.nf --samplesheet '/path/to/samplesheet'
     """.stripIndent()
@@ -95,7 +104,10 @@ process ASSEMBLY {
 
     def input = !single ? "--R1 '${reads[0]}' --R2 '${reads[1]}'" : "--R1 '${reads}'"
     """
-    shovill --outdir assembly ${input} --ram ${task.memory} --cpus ${task.cpus}
+    shovill --outdir assembly ${input} --ram ${task.memory} --cpus ${task.cpus} \
+        --depth ${params.depth} \
+        --minlen ${params.minLenContig} \
+        --mincov ${params.minCov}
     mv assembly/contigs.fa "assembly/${pair_id}_contigs.fna"
     """
 }
@@ -145,18 +157,21 @@ process DETECT_CHIMERS_CONTAMINATION {
     container "metashot/gunc:1.0.5-1"
 
     tag "${pair_id}"
-    publishDir "${params.outdir}/${pair_id}/${params.runName}", mode: 'copy'
+    //publishDir "${params.outdir}/${pair_id}/${params.runName}", mode: 'copy'
 
     input:
     tuple val(pair_id), path(assembly)
     path(guncdb)
 
     output:
-    tuple val(pair_id), path('gunc.out')
+    tuple val(pair_id), path("*.tsv")
 
     script:
     """
-    gunc run --input_dir assembly -r ${guncdb} --file_suffix fna
+    gunc run --input_dir assembly -r ${guncdb} \
+        --file_suffix fna \
+        --threads ${task.cpus} \
+        
     """
 }
 
@@ -206,7 +221,7 @@ workflow {
     
     // Read samplesheet: find and update paths to reads (externalize from nf?)
     if (!params.skip_samplesheet) {
-    	READ_SAMPLESHEET(file(params.samplesheet), file(params.samplesheet).getParent()) 
+    	READ_SAMPLESHEET(file(params.samplesheet, checkIfExists), file(params.samplesheet).getParent()) 
 
     	// Extract reads from samplesheet
     	READ_SAMPLESHEET.out.samplesheetAbsolute
