@@ -221,7 +221,7 @@ workflow {
     
     // Read samplesheet: find and update paths to reads (externalize from nf?)
     if (!params.skip_samplesheet) {
-    	READ_SAMPLESHEET(file(params.samplesheet, checkIfExists), file(params.samplesheet).getParent()) 
+    	READ_SAMPLESHEET(file(params.samplesheet, checkIfExists: true), file(params.samplesheet).getParent()) 
 
     	// Extract reads from samplesheet
     	READ_SAMPLESHEET.out.samplesheetAbsolute
