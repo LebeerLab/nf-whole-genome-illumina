@@ -50,12 +50,16 @@ class SampleSheet:
             smpsh = pd.read_csv(self.filename)
         self.content = smpsh
 
-    def update_samplesheet(self):
+    def _build_read_paths(self):
         # Update paths to absolute paths.
         self.content[[self.fw_col, self.rev_col]] = self.content[
             [self.fw_col, self.rev_col]
         ].apply(lambda x: self._fetch_filepath(x))
 
+
+    def update_samplesheet(self):
+
+        self._build_read_paths()
         # Add run_name as column
         self.content["run_id"] = self.run_id
         # Generate uqid
@@ -87,6 +91,8 @@ class SampleSheet:
 
     def update_sampledb(self):
 
+        self._build_read_paths()
+
         if Path(self.sample_db_samplesheet).exists():
             db_content = pd.read_table(self.sample_db_samplesheet)
             db_content = db_content.append(
@@ -113,7 +119,7 @@ class SampleSheet:
                     if simplify_samplename(file) == filename:
                         return os.path.join(root, file)
             raise FileNotFoundError(
-                f"Could not locate the read specified as {filename}"
+                f"Could not locate the file specified as {filename}"
             )
 
         smpsh_dir = os.path.dirname(self.filename)
