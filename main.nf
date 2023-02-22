@@ -115,10 +115,9 @@ process ASSEMBLY {
 process CHECKM {
     container "nanozoo/checkm:latest"
 
-    //errorStrategy "ignore"
     tag "${pair_id}" 
 
-    publishDir "${params.outdir}/${pair_id}/${params.runName}", mode: 'copy'
+    //publishDir "${params.outdir}/${pair_id}/${params.runName}", mode: 'copy'
 
     input:
     tuple val(pair_id), path(assembly)
@@ -185,12 +184,12 @@ process MERGE_QC {
     tuple val(pair_id), path(checkm_f), path(gunc_f)
 
     output:
-    tuple val(pair_id), path("qc_f/*.tsv")
+    tuple val(pair_id), path("qc/*.tsv")
 
     script:
     """
     mkdir qc_f
-    gunc merge_checkm --gunc_file ${gunc_f} --checkm_file ${checkm_f} --out_dir qc_f
+    gunc merge_checkm --gunc_file ${gunc_f} --checkm_file ${checkm_f} --out_dir qc
     """
 }
 
