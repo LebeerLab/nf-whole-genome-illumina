@@ -55,8 +55,8 @@ class SampleSheet:
 
     def _build_read_paths(self, absolute=False):
         # Update paths to absolute paths.
-        self.content[[self.fw_col, self.rev_col]] = self.content[
-            [self.fw_col, self.rev_col]
+        self.content[[self.fw_col, self.rev_col, DEF_ASSEMBLY]] = self.content[
+            [self.fw_col, self.rev_col, DEF_ASSEMBLY]
         ].apply(lambda x: self._fetch_filepath(x, absolute))
 
 
