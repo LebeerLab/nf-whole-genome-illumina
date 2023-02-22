@@ -11,6 +11,7 @@ CORR_SAMPLESHEET = "samplesheet.tsv"
 DEF_SAMPLE_ID = "ID"
 DEF_FW_READS = "fw_reads"
 DEF_RV_READS = "rv_reads"
+DEF_ASSEMBLY = "assembly"
 
 
 class SampleSheet:
@@ -27,6 +28,8 @@ class SampleSheet:
         self.fw_col = fw_col
         self.rev_col = rev_col
         self.run_id = run_id
+        self.root_dir = os.getcwd()
+
         if sample_db_dir is not None:
             self.corrected_sheet = True
             self.sample_db_samplesheet = os.path.join(sample_db_dir, "sampledb.tsv")
@@ -50,11 +53,11 @@ class SampleSheet:
             smpsh = pd.read_csv(self.filename)
         self.content = smpsh
 
-    def _build_read_paths(self):
+    def _build_read_paths(self, absolute=False):
         # Update paths to absolute paths.
         self.content[[self.fw_col, self.rev_col]] = self.content[
             [self.fw_col, self.rev_col]
-        ].apply(lambda x: self._fetch_filepath(x))
+        ].apply(lambda x: self._fetch_filepath(x, absolute))
 
 
     def update_samplesheet(self):
@@ -72,31 +75,31 @@ class SampleSheet:
         # Rename ID, rv_read, fw_read cols to fixed names
         self.content.rename(
             columns={
-                self.sample_col: "ID",
-                self.fw_col: "fw_reads",
-                self.rev_col: "rv_reads",
+                self.sample_col: DEF_SAMPLE_ID,
+                self.fw_col: DEF_FW_READS,
+                self.rev_col: DEF_RV_READS,
             }
         )
 
         # Add resulting assembly path as column
         # RESULTS / ID / RUN / ASSEMBLY / ID_contigs.fna
         root_contig = os.path.dirname(self.filename).split("/data")[0] + "/results/"
-        self.content["assembly"] = [
+        self.content[DEF_ASSEMBLY] = [
             f"{root_contig}{id}/{run}/assembly/{id}_contigs.fna"
-            for id, run in zip(self.content["ID"], self.content["run_id"])
+            for id, run in zip(self.content[DEF_SAMPLE_ID], self.content["run_id"])
         ]
 
     def write_samplesheet(self):
         self.content.to_csv(CORR_SAMPLESHEET, sep="\t", index=False)
 
     def update_sampledb(self):
-
-        self._build_read_paths()
+        # Add absolute root
+        self._build_read_paths(absolute=True)
 
         if Path(self.sample_db_samplesheet).exists():
             db_content = pd.read_table(self.sample_db_samplesheet)
             db_content = db_content.append(
-                self.content[~self.content["ID"].isin(db_content["ID"])],
+                self.content[~self.content[DEF_SAMPLE_ID].isin(db_content[DEF_SAMPLE_ID])],
                 ignore_index=True,
             )
 
@@ -104,19 +107,22 @@ class SampleSheet:
         else:
             self.content.to_csv(self.sample_db_samplesheet, sep="\t", index=False)
 
-    def _fetch_filepath(self, read_files):
+    def _fetch_filepath(self, read_files, absolute=False):
         def simplify_samplenames(filenames: pd.Series) -> pd.Series:
             return filenames.apply(
                 lambda x: x.lower().split(".")[0].split("/")[-1].strip()
             )
 
         def simplify_samplename(filename: str) -> str:
-            return filename.lower().split(".")[0].strip()
+            return filename.lower().split(".")[0].strip() 
 
-        def find_matching_file(filename, rootdir):
+        def find_matching_file(filename, rootdir, absolute=False):
             for root, _, files in os.walk(rootdir):
                 for file in files:
                     if simplify_samplename(file) == filename:
+                        if absolute:
+                            absolute_root = os.path.join(self.root_dir, root)
+                            return os.path.join(absolute_root, file)    
                         return os.path.join(root, file)
             raise FileNotFoundError(
                 f"Could not locate the file specified as {filename}"
@@ -124,7 +130,7 @@ class SampleSheet:
 
         smpsh_dir = os.path.dirname(self.filename)
         reads_smp = simplify_samplenames(read_files)
-        return reads_smp.apply(lambda x: find_matching_file(x, smpsh_dir))
+        return reads_smp.apply(lambda x: find_matching_file(x, smpsh_dir, absolute))
 
 
 if __name__ == "__main__":
