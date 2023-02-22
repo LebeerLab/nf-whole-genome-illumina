@@ -169,7 +169,7 @@ process DETECT_CHIMERS_CONTAMINATION {
     script:
     """
     gunc run --input_dir assembly -r ${guncdb} \
-        --file_suffix fna \
+        --file_suffix .fna \
         --threads ${task.cpus} \
         
     """
@@ -185,11 +185,12 @@ process MERGE_QC {
     tuple val(pair_id), path(checkm_f), path(gunc_f)
 
     output:
-    tuple val(pair_id), path(qc_f)
+    tuple val(pair_id), path("qc_f/*.tsv")
 
     script:
     """
-    gunc merge_checkm --gunc_file gunc_f --checkm_file checkm_f --out_dir qc_f
+    mkdir qc_f
+    gunc merge_checkm --gunc_file ${gunc_f} --checkm_file ${checkm_f} --out_dir qc_f
     """
 }
 
