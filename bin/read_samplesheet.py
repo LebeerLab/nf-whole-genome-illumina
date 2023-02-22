@@ -119,7 +119,7 @@ class SampleSheet:
         def find_matching_file(filename, rootdir, absolute=False):
             for root, _, files in os.walk(rootdir):
                 for file in files:
-                    if simplify_samplename(file) == filename:
+                    if simplify_samplename(file) == simplify_samplename(filename):
                         if absolute:
                             absolute_root = os.path.join(self.root_dir, root)
                             return os.path.join(absolute_root, file)    
