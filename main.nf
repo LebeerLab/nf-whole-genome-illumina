@@ -6,14 +6,23 @@ params.fw_reads = "fw_reads"
 params.rv_reads = "rv_reads"
 params.runName = "run01"
 
+params.gtdb_db = null
+params.mash_db = "mdb"
+params.gunc_db = null
+
 params.debug = false
 
 params.skip_fastp = false
+params.skip_samplesheet = false
 params.truncLen = 0
 params.trimLeft = 0
 params.trimRight = 0
 params.minLen = 50
 params.maxN = 2
+
+params.depth = 150
+params.minLenContig = 0
+params.minCov = 2
 
 //===== INCLUDE MODULES ==========================================
 include { FASTP; MULTIQC } from './modules/qc' addParams(OUTPUT: "${params.outdir}")
@@ -31,8 +40,11 @@ def helpMessage() {
       --samplesheet             Path to the samplesheet containing the reads to be assembled. Default: ${params.samplesheet}
       --sampleName              Column with the name of the sample. Default: ${params.sampleName}
       --fw_reads                Column name of the forward read. Default: ${params.fw_reads}
-      --rv_reads               Column name of the reverse read. Default: ${params.rv_reads}
+      --rv_reads                Column name of the reverse read. Default: ${params.rv_reads}
       --runName                 Name of the run. Default: ${params.runName}
+      --gtdb_db                 Path to gtdb reference database. Default = ${params.gtdb_db}
+      --gunc_db                 Path to a gunc reference database. Default = ${params.gunc_db}
+      --mash_db                 Path to the mash db made from the gtdb_db. Leave as is if you want the pipeline to generate this file (takes 45 minutes). Default = ${params.mash_db}
 
     Optional arguments:
 
@@ -44,7 +56,11 @@ def helpMessage() {
       --trimLeft --trimRight    Trimming on left or right side of reads by fastp. Default = ${params.trimLeft}
       --minLen                  Minimum length of reads kept by fastp. Default = ${params.minLen}
       --maxN                    Maximum amount of uncalled bases N to be kept by fastp. Default = ${params.maxN}
-
+    
+      --depth                   Subsample reads to this depth. Disable with --depth 0. Default = ${params.depth}
+      --minLenContig            Minimum contig length. Set to 0 for automatic determination. Default = ${params.minLenContig}
+      --minCov                  Minimumcontig coverage. Set to 0 for automatic determination. Default = ${params.minCov}
+    
     Usage example:
         nextflow run main.nf --samplesheet '/path/to/samplesheet'
     """.stripIndent()
@@ -60,6 +76,8 @@ def paramsUsed() {
     fw_reads:         ${params.fw_reads}
     rv_reads:         ${params.rv_reads}
     outdir:           ${params.outdir}
+    gtdb_db:          ${params.gtdb_db}
+    gunc_db:          ${params.gunc_db}
     """.stripIndent()
 }
 
@@ -86,7 +104,10 @@ process ASSEMBLY {
 
     def input = !single ? "--R1 '${reads[0]}' --R2 '${reads[1]}'" : "--R1 '${reads}'"
     """
-    shovill --outdir assembly ${input} --ram ${task.memory} --cpus ${task.cpus}
+    shovill --outdir assembly ${input} --ram ${task.memory} --cpus ${task.cpus} \
+        --depth ${params.depth} \
+        --minlen ${params.minLenContig} \
+        --mincov ${params.minCov}
     mv assembly/contigs.fa "assembly/${pair_id}_contigs.fna"
     """
 }
@@ -94,10 +115,9 @@ process ASSEMBLY {
 process CHECKM {
     container "nanozoo/checkm:latest"
 
-    //errorStrategy "ignore"
     tag "${pair_id}" 
 
-    publishDir "${params.outdir}/${pair_id}/${params.runName}", mode: 'copy'
+    //publishDir "${params.outdir}/${pair_id}/${params.runName}", mode: 'copy'
 
     input:
     tuple val(pair_id), path(assembly)
@@ -132,19 +152,85 @@ process ANNOTATION {
     """
 }
 
+process DETECT_CHIMERS_CONTAMINATION {
+    container "metashot/gunc:1.0.5-1"
+
+    tag "${pair_id}"
+    //publishDir "${params.outdir}/${pair_id}/${params.runName}", mode: 'copy'
+
+    input:
+    tuple val(pair_id), path(assembly)
+    path(guncdb)
+
+    output:
+    tuple val(pair_id), path("*.tsv")
+
+    script:
+    """
+    gunc run --input_dir assembly -r ${guncdb} \
+        --file_suffix .fna \
+        --threads ${task.cpus} \
+        
+    """
+}
+
+process MERGE_QC {
+    container "metashot/gunc:1.0.5-1"
+
+    tag "${pair_id}"
+    publishDir "${params.outdir}/${pair_id}/${params.runName}", mode: 'copy'
+
+    input:
+    tuple val(pair_id), path(checkm_f), path(gunc_f)
+
+    output:
+    tuple val(pair_id), path("qc/*.tsv")
+
+    script:
+    """
+    mkdir qc_f
+    gunc merge_checkm --gunc_file ${gunc_f} --checkm_file ${checkm_f} --out_dir qc
+    """
+}
+
+process CLASSIFICATION {
+    errorStrategy 'ignore'
+    container "theoaphidian/gtdbtk-entry"
+    containerOptions "-v ${params.gtdb_db}:/refdata"
+
+    tag "${pair_id}"
+    publishDir "${params.outdir}/${pair_id}/${params.runName}", mode: 'copy'
+
+    input:
+    tuple val(pair_id), path(assembly)
+    path(gtdb_db)
+    path(mash_db)
+
+    output:
+    tuple val(pair_id), path(output)
+    script:
+    """
+    gtdbtk classify_wf --genome_dir assembly --prefix "${pair_id}_gtdbtk" --out_dir "output" --cpus $task.cpus --mash_db mash_db
+    """
+}    
+
+
 workflow {
     
     paramsUsed()
     
     // Read samplesheet: find and update paths to reads (externalize from nf?)
+    if (!params.skip_samplesheet) {
+    	READ_SAMPLESHEET(file(params.samplesheet, checkIfExists: true), file(params.samplesheet).getParent()) 
 
-    READ_SAMPLESHEET(params.samplesheet, file(params.samplesheet).getParent()) 
-
-    // Extract reads from samplesheet
-    READ_SAMPLESHEET.out.samplesheetAbsolute
-        .splitCsv(header: true, sep: "\t") 
-        .map {row -> tuple(row.ID, tuple(file(row.fw_reads), file(row.rv_reads)))}
-        .set{reads_ch}
+    	// Extract reads from samplesheet
+    	READ_SAMPLESHEET.out.samplesheetAbsolute
+        	.splitCsv(header: true, sep: "\t") 
+        	.map {row -> tuple(row.ID, tuple(file(row.fw_reads), file(row.rv_reads)))}
+        	.set{reads_ch}
+    } else {
+	reads_ch = Channel.fromFilePairs(params.reads)
+    }
 
     if (!params.skip_fastp){
 
@@ -170,6 +256,16 @@ workflow {
     
     // QC  
     CHECKM(assembly_ch)
+        .set{ checkm_ch }
+    if (params.gunc_db != null) {
+        DETECT_CHIMERS_CONTAMINATION(assembly_ch, file(params.gunc_db))
+            .set { gunc_ch }
+        MERGE_QC(checkm_ch.join(gunc_ch))
+    }
     // Annotation genes
     ANNOTATION(assembly_ch)
+    if (params.gtdb_db != null) {
+        // Classification
+        CLASSIFICATION(assembly_ch, file(params.gtdb_db), file(params.mash_db))
+    }
 }
