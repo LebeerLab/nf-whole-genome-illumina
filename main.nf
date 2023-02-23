@@ -188,7 +188,7 @@ process MERGE_QC {
 
     script:
     """
-    mkdir qc_f
+    mkdir qc
     gunc merge_checkm --gunc_file ${gunc_f} --checkm_file ${checkm_f} --out_dir qc
     """
 }
