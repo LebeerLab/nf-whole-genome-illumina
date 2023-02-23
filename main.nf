@@ -91,7 +91,7 @@ process ASSEMBLY {
 
     tag "${pair_id}" 
 
-    publishDir "${params.outdir}/${pair_id}/${params.runName}", mode: 'copy'
+    publishDir "${params.outdir}/${params.runName}/${pair_id}", mode: 'copy'
 
     input:
     tuple val(pair_id), path(reads)
@@ -117,7 +117,7 @@ process CHECKM {
 
     tag "${pair_id}" 
 
-    //publishDir "${params.outdir}/${pair_id}/${params.runName}", mode: 'copy'
+    //publishDir "${params.outdir}/${params.runName}/${pair_id}", mode: 'copy'
 
     input:
     tuple val(pair_id), path(assembly)
@@ -137,7 +137,7 @@ process ANNOTATION {
     container "staphb/prokka"
 
     tag "${pair_id}"
-    publishDir "${params.outdir}/${pair_id}/${params.runName}", mode: 'copy'
+    publishDir "${params.outdir}/${params.runName}/${pair_id}", mode: 'copy'
 
     input:
     tuple val(pair_id), path(assembly)
@@ -156,7 +156,6 @@ process DETECT_CHIMERS_CONTAMINATION {
     container "metashot/gunc:1.0.5-1"
 
     tag "${pair_id}"
-    //publishDir "${params.outdir}/${pair_id}/${params.runName}", mode: 'copy'
 
     input:
     tuple val(pair_id), path(assembly)
@@ -178,7 +177,7 @@ process MERGE_QC {
     container "metashot/gunc:1.0.5-1"
 
     tag "${pair_id}"
-    publishDir "${params.outdir}/${pair_id}/${params.runName}", mode: 'copy'
+    publishDir "${params.outdir}/${params.runName}/${pair_id}", mode: 'copy'
 
     input:
     tuple val(pair_id), path(checkm_f), path(gunc_f)
