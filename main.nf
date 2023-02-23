@@ -198,19 +198,18 @@ process CLASSIFICATION {
     container "theoaphidian/gtdbtk-entry"
     containerOptions "-v ${params.gtdb_db}:/refdata"
 
-    tag "${pair_id}"
-    publishDir "${params.outdir}/${pair_id}/${params.runName}", mode: 'copy'
+    publishDir "${params.outdir}", mode: 'copy'
 
     input:
-    tuple val(pair_id), path(assembly)
+    path('assembly/*')
     path(gtdb_db)
     path(mash_db)
 
     output:
-    tuple val(pair_id), path(output)
+    path(output)
     script:
     """
-    gtdbtk classify_wf --genome_dir assembly --prefix "${pair_id}_gtdbtk" --out_dir "output" --cpus $task.cpus --mash_db mash_db
+    gtdbtk classify_wf --genome_dir assembly --out_dir "output" --cpus $task.cpus --mash_db mash_db
     """
 }    
 
@@ -261,11 +260,23 @@ workflow {
         DETECT_CHIMERS_CONTAMINATION(assembly_ch, file(params.gunc_db))
             .set { gunc_ch }
         MERGE_QC(checkm_ch.join(gunc_ch))
+            .set { final_qc_ch }
     }
     // Annotation genes
     ANNOTATION(assembly_ch)
     if (params.gtdb_db != null) {
         // Classification
-        CLASSIFICATION(assembly_ch, file(params.gtdb_db), file(params.mash_db))
+        // Wait for qc to be done
+        final_qc_ch
+            .collect()
+            .set { qc_done }
+	// Collect all results
+	def contig_pattern = params.outdir + "/**_contigs.fna"
+        Channel
+            .fromPath(contig_pattern)
+            .collect()
+            .set{ assemblies_ch }
+
+        CLASSIFICATION(assemblies_ch, file(params.gtdb_db), file(params.mash_db))
     }
 }
