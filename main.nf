@@ -286,7 +286,7 @@ workflow {
     // Annotation genes
     ANNOTATION(assembly_ch)
     if (params.gtdb_db != null) {
-        // Classification
+    // Classification
         // Collect all results
 	def contig_pattern = params.outdir + "/**_contigs.fna"
         Channel
