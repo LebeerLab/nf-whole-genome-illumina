@@ -82,6 +82,7 @@ class ReadSampleSheet(object):
             args.samplesheet, DEF_SAMPLE_ID, DEF_FW_READS, DEF_RV_READS, None, None
         )
         smpsh.read_samplesheet()
+        smpsh.update_samplesheet()
         smpsh.update_sampledb()
 
 

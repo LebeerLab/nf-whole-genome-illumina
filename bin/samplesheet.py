@@ -23,12 +23,17 @@ class SampleSheet:
         run_id=None,
     ) -> None:
         # Validation input
+        paired_end = True
         if sample_col == None:
             sample_col = DEF_SAMPLE_ID
-        if fw_col == None:
+        
+        ## Assume if fw_col is given, that this is on purpose (eg single reads)
+        if fw_col == None and rev_col == None:
             fw_col = DEF_FW_READS
-        if rev_col == None:
             rev_col = DEF_RV_READS
+        elif rev_col == None:
+            paired_end = False
+        
         if run_id == None:
             run_id = DEF_RUN
 
@@ -37,6 +42,7 @@ class SampleSheet:
         self.rev_col = rev_col
         self.run_id = run_id
         self.root_dir = os.getcwd()
+        self.paired_end = paired_end
 
         if sample_db_dir is not None:
             self.corrected_sheet = True
@@ -96,10 +102,10 @@ class SampleSheet:
         )
 
         # Add resulting assembly path as column
-        # RESULTS / ID / RUN / ASSEMBLY / ID_contigs.fna
+        # RESULTS / RUN / ID/ ASSEMBLY / ID_contigs.fna
         root_contig = self.root_dir + "/results/"
         self.content[DEF_ASSEMBLY] = [
-            f"{root_contig}{id}/{run}/assembly/{id}_contigs.fna"
+            f"{root_contig}{run}/{id}/assembly/{id}_contigs.fna"
             for id, run in zip(self.content[DEF_SAMPLE_ID], self.content["run_id"])
         ]
 
