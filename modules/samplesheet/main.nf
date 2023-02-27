@@ -20,7 +20,7 @@ process READ_SAMPLESHEET {
     
     script:
     """
-    read_samplesheet.py -s "${params.samplesheet}" -i "${params.sampleName}" \
+    read_samplesheet.py read -s "${params.samplesheet}" -i "${params.sampleName}" \
     -f "${params.fw_reads}" -r "${params.rv_reads}" -n "${params.runName}"
     """
 }
