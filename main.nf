@@ -10,10 +10,6 @@ params.gtdb_db = null
 params.mash_db = "mdb"
 params.gunc_db = null
 
-params.debug = false
-
-params.skip_fastp = false
-params.skip_samplesheet = false
 params.truncLen = 0
 params.trimLeft = 0
 params.trimRight = 0
@@ -23,6 +19,11 @@ params.maxN = 2
 params.depth = 150
 params.minLenContig = 0
 params.minCov = 2
+
+params.skip_samplesheet = false
+params.skip_fastp = false
+params.skip_fastani = false
+params.single_end = false
 
 //===== INCLUDE MODULES ==========================================
 include { FASTP; MULTIQC } from './modules/qc' addParams(OUTPUT: "${params.outdir}")
@@ -52,6 +53,7 @@ def helpMessage() {
       --debug                   Run on a small subset of samples, for debugging purposes.
       --outdir                  The output directory where the results will be saved. Defaults to ${params.outdir}
       
+      --single_end              If the input data is single end set this to true. Default = ${params.single_end}
       --truncLen                Truncation length used by fastp. Default = ${params.truncLen}
       --trimLeft --trimRight    Trimming on left or right side of reads by fastp. Default = ${params.trimLeft}
       --minLen                  Minimum length of reads kept by fastp. Default = ${params.minLen}
@@ -183,7 +185,7 @@ process MERGE_QC {
     tuple val(pair_id), path(checkm_f), path(gunc_f)
 
     output:
-    tuple val(pair_id), path("qc/*.tsv")
+    path("qc/*.tsv")
 
     script:
     """
@@ -197,7 +199,7 @@ process CLASSIFICATION {
     container "theoaphidian/gtdbtk-entry"
     containerOptions "-v ${params.gtdb_db}:/refdata"
 
-    publishDir "${params.outdir}", mode: 'copy'
+    publishDir "${params.outdir}/${params.runName}", mode: 'copy'
 
     input:
     path('assembly/*')
@@ -207,8 +209,13 @@ process CLASSIFICATION {
     output:
     path(output)
     script:
+    def fastani = params.skip_fastani ? "--mash_db mash_db" : "--skip_ani_screen"
     """
-    gtdbtk classify_wf --genome_dir assembly --out_dir "output" --cpus $task.cpus --mash_db mash_db
+    gtdbtk classify_wf \
+    --genome_dir assembly \
+    --out_dir "output" \
+    --cpus $task.cpus \
+    $fastani
     """
 }    
 
@@ -218,19 +225,31 @@ workflow {
     paramsUsed()
     
     // Read samplesheet: find and update paths to reads (externalize from nf?)
-    if (!params.skip_samplesheet) {
+    def process_samplesheet = params.skip_samplesheet ? false : true
+    if (process_samplesheet) {
     	READ_SAMPLESHEET(file(params.samplesheet, checkIfExists: true), file(params.samplesheet).getParent()) 
 
     	// Extract reads from samplesheet
     	READ_SAMPLESHEET.out.samplesheetAbsolute
         	.splitCsv(header: true, sep: "\t") 
+        	.take( params.debug ? 2 : -1 )
+		.set{reads_intermediate}
+
+        if (params.single_end) {
+            reads_intermediate
+                .map {row -> tuple(row.ID, file(row.fw_reads))}
+                .set{reads_ch}
+        } else {
+            reads_intermediate
         	.map {row -> tuple(row.ID, tuple(file(row.fw_reads), file(row.rv_reads)))}
-        	.set{reads_ch}
+                .set{reads_ch}        
+        }
     } else {
 	reads_ch = Channel.fromFilePairs(params.reads)
     }
 
-    if (!params.skip_fastp){
+    def execute_fastp = params.skip_fastp ? false : true
+    if (execute_fastp){
 
         //Filter and trim using fastp
         FASTP(reads_ch)
@@ -259,17 +278,16 @@ workflow {
         DETECT_CHIMERS_CONTAMINATION(assembly_ch, file(params.gunc_db))
             .set { gunc_ch }
         MERGE_QC(checkm_ch.join(gunc_ch))
-            .set { final_qc_ch }
+            .collectFile(
+                keepHeader: true, 
+                name: "qc_checkm_gunc.tsv", 
+                storeDir: "${params.outdir}/${params.runName}")
     }
     // Annotation genes
     ANNOTATION(assembly_ch)
     if (params.gtdb_db != null) {
-        // Classification
-        // Wait for qc to be done
-        final_qc_ch
-            .collect()
-            .set { qc_done }
-	// Collect all results
+    // Classification
+        // Collect all results
 	def contig_pattern = params.outdir + "/**_contigs.fna"
         Channel
             .fromPath(contig_pattern)
