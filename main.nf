@@ -23,6 +23,7 @@ params.minCov = 2
 params.skip_samplesheet = false
 params.skip_fastp = false
 params.skip_fastani = false
+params.single_end = false
 
 //===== INCLUDE MODULES ==========================================
 include { FASTP; MULTIQC } from './modules/qc' addParams(OUTPUT: "${params.outdir}")
@@ -52,6 +53,7 @@ def helpMessage() {
       --debug                   Run on a small subset of samples, for debugging purposes.
       --outdir                  The output directory where the results will be saved. Defaults to ${params.outdir}
       
+      --single_end              If the input data is single end set this to true. Default = ${params.single_end}
       --truncLen                Truncation length used by fastp. Default = ${params.truncLen}
       --trimLeft --trimRight    Trimming on left or right side of reads by fastp. Default = ${params.trimLeft}
       --minLen                  Minimum length of reads kept by fastp. Default = ${params.minLen}
@@ -230,9 +232,18 @@ workflow {
     	// Extract reads from samplesheet
     	READ_SAMPLESHEET.out.samplesheetAbsolute
         	.splitCsv(header: true, sep: "\t") 
-        	.map {row -> tuple(row.ID, tuple(file(row.fw_reads), file(row.rv_reads)))}
         	.take( params.debug ? 2 : -1 )
+		.set{reads_intermediate}
+
+        if (params.single_end) {
+            reads_intermediate
+                .map {row -> tuple(row.ID, file(row.fw_reads))}
                 .set{reads_ch}
+        } else {
+            reads_intermediate
+        	.map {row -> tuple(row.ID, tuple(file(row.fw_reads), file(row.rv_reads)))}
+                .set{reads_ch}        
+        }
     } else {
 	reads_ch = Channel.fromFilePairs(params.reads)
     }
