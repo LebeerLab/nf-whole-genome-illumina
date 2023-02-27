@@ -54,7 +54,9 @@ class ReadSampleSheet(object):
         parser.add_argument("-f", "--forward_column", default=DEF_FW_READS)
         parser.add_argument("-r", "--reverse_column", default=DEF_RV_READS)
         parser.add_argument("-n", "--run_name", default=DEF_RUN)
+        parser.add_argument("-se", "--single", action="store_true")
         args = parser.parse_args(sys.argv[2:])
+        paired = not args.single
 
         smpsh = SampleSheet(
             args.samplesheet,
@@ -63,24 +65,33 @@ class ReadSampleSheet(object):
             args.reverse_column,
             None,
             args.run_name,
+            paired,
         )
+       
         smpsh.read_samplesheet()
         smpsh.update_samplesheet()
         smpsh.write_samplesheet()
-
+       
     def write(self):
 
         parser = argparse.ArgumentParser(
             description="Read samplesheet, update to absolute paths and store in db.",
-            usage="""read_samplesheet.py write -s data/samplesheet.tsv -d database_file.tsv"""
+            usage="""read_samplesheet.py write -s data/samplesheet.tsv -d database_file.tsv""",
         )
         parser.add_argument("-s", "--samplesheet", default=CORR_SAMPLESHEET)
         parser.add_argument("-d", "--sample_db_dir", required=True)
-
+        parser.add_argument("-se", "--single", action="store_true")
         args = parser.parse_args(sys.argv[2:])
+        paired = not args.single
 
         smpsh = SampleSheet(
-            args.samplesheet, DEF_SAMPLE_ID, DEF_FW_READS, DEF_RV_READS, None, None
+            args.samplesheet,
+            DEF_SAMPLE_ID,
+            DEF_FW_READS,
+            DEF_RV_READS,
+            None,
+            None,
+            paired,
         )
         smpsh.read_samplesheet()
         smpsh.update_sampledb()

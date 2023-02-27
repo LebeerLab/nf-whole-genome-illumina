@@ -11,6 +11,11 @@ DEF_RV_READS = "rv_reads"
 DEF_ASSEMBLY = "assembly"
 DEF_RUN = "run01"
 
+def error_message(message):
+    red = '\033[91m'
+    end = '\033[0m'
+    return f"{red}{message}{end}"
+
 
 class SampleSheet:
     def __init__(
@@ -21,18 +26,18 @@ class SampleSheet:
         rev_col=DEF_RV_READS,
         sample_db_dir=None,
         run_id=None,
+        paired_end=True
     ) -> None:
         # Validation input
-        paired_end = True
+        self.paired_end = paired_end
         if sample_col == None:
             sample_col = DEF_SAMPLE_ID
         
         ## Assume if fw_col is given, that this is on purpose (eg single reads)
-        if fw_col == None and rev_col == None:
+        if fw_col == None:
             fw_col = DEF_FW_READS
+        if paired_end and rev_col == None:
             rev_col = DEF_RV_READS
-        elif rev_col == None:
-            paired_end = False
         
         if run_id == None:
             run_id = DEF_RUN
@@ -58,20 +63,34 @@ class SampleSheet:
 
     def read_samplesheet(self):
 
-        if self.filename.endswith(".tsv"):
-            smpsh = pd.read_table(self.filename)
-            assert self.rev_col in smpsh.columns
-        ## Asumption: it is a csv, could implement xlsx with pd.read_xlsx,
-        ## But then need to supply pyopenxlsx dependency in docker...
-        else:
-            smpsh = pd.read_csv(self.filename)
-        self.content = smpsh
+        try:
+            if self.filename.endswith(".tsv"):
+                smpsh = pd.read_table(self.filename)
+                
+            ## Asumption: it is a csv, could implement xlsx with pd.read_xlsx,
+            ## But then need to supply pyopenxlsx dependency in docker...
+            else:
+                smpsh = pd.read_csv(self.filename)
+            ## Assertion of sample cols
+            assert self.fw_col in smpsh.columns, f"Forward column {self.fw_column} not found in file with header {smpsh.columns.values}."
+            if self.paired_end:
+                assert self.rev_col in smpsh.columns, f"Reverse column {self.rev_col} not found in file with header {smpsh.columns.values}."
+            self.content = smpsh
+        except AssertionError as e:
+            print(error_message(f"Error during reading samplesheet:\n{e}"))
+            exit(1)
 
     def _build_read_paths(self, absolute=False):
         # Update paths to rel paths.
-        self.content[[self.fw_col, self.rev_col]] = self.content[
-            [self.fw_col, self.rev_col]
-        ].apply(lambda x: self._fetch_filepath(x, absolute))
+        if self.paired_end:
+            self.content[[self.fw_col, self.rev_col]] = self.content[
+                [self.fw_col, self.rev_col]
+            ].apply(lambda x: self._fetch_filepath(x, absolute))
+        else:
+            self.content[[self.fw_col]] = self.content[
+                    [self.fw_col]
+                ].apply(lambda x: self._fetch_filepath(x, absolute))
+                
 
     def _build_assembly_paths(self):
         # Update paths to absolute paths.
@@ -85,20 +104,26 @@ class SampleSheet:
         # Add run_name as column
         self.content["run_id"] = self.run_id
         # Generate uqid
+        uqid_columns = ["run_id", self.fw_col]
+        if self.paired_end:
+            uqid_columns.append(self.rev_col)
         self.content["uqid"] = (
-            self.content[["run_id", self.fw_col, self.rev_col]]
+            self.content[uqid_columns]
             .astype(str)
             .agg("".join, axis=1)
             .map(generate_uqid)
         )
 
         # Rename ID, rv_read, fw_read cols to fixed names
-        self.content.rename(
-            columns={
+        colnames = {
                 self.sample_col: DEF_SAMPLE_ID,
                 self.fw_col: DEF_FW_READS,
-                self.rev_col: DEF_RV_READS,
             }
+        if self.paired_end:
+            colnames[self.rev_col] = DEF_RV_READS
+
+        self.content.rename(
+            columns=colnames
         )
 
         # Add resulting assembly path as column
