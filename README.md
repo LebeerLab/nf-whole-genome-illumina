@@ -1,5 +1,17 @@
 # nf-whole-genome-illumina
 
+## Samplesheet input
+
+The samplesheet is updated and the relative location of the fastq files can be deduced starting from the folder above the samplesheet. 
+Therefore it is important to supply the samplesheet in the following format: `dir/containing/samplesheet/samplesheet.tsv`.
+The pipeline accepts tsv or csv samplesheets, as it will convert csv sheets to tsv.
+
+The samplesheet should contain atleast the three columns with the following names in the header:
+params.sampleName = "ID"
+params.fw_reads = "fw_reads"
+params.rv_reads = "rv_reads"
+
+
 ## Reference Databases
 
 This pipeline needs three separate reference databases for the whole pipeline to run:
