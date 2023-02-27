@@ -10,10 +10,6 @@ params.gtdb_db = null
 params.mash_db = "mdb"
 params.gunc_db = null
 
-params.debug = false
-
-params.skip_fastp = false
-params.skip_samplesheet = false
 params.truncLen = 0
 params.trimLeft = 0
 params.trimRight = 0
@@ -23,6 +19,10 @@ params.maxN = 2
 params.depth = 150
 params.minLenContig = 0
 params.minCov = 2
+
+params.skip_samplesheet = false
+params.skip_fastp = false
+params.skip_fastani = false
 
 //===== INCLUDE MODULES ==========================================
 include { FASTP; MULTIQC } from './modules/qc' addParams(OUTPUT: "${params.outdir}")
@@ -91,7 +91,7 @@ process ASSEMBLY {
 
     tag "${pair_id}" 
 
-    publishDir "${params.outdir}/${pair_id}/${params.runName}", mode: 'copy'
+    publishDir "${params.outdir}/${params.runName}/${pair_id}", mode: 'copy'
 
     input:
     tuple val(pair_id), path(reads)
@@ -117,7 +117,7 @@ process CHECKM {
 
     tag "${pair_id}" 
 
-    //publishDir "${params.outdir}/${pair_id}/${params.runName}", mode: 'copy'
+    //publishDir "${params.outdir}/${params.runName}/${pair_id}", mode: 'copy'
 
     input:
     tuple val(pair_id), path(assembly)
@@ -137,7 +137,7 @@ process ANNOTATION {
     container "staphb/prokka"
 
     tag "${pair_id}"
-    publishDir "${params.outdir}/${pair_id}/${params.runName}", mode: 'copy'
+    publishDir "${params.outdir}/${params.runName}/${pair_id}", mode: 'copy'
 
     input:
     tuple val(pair_id), path(assembly)
@@ -156,7 +156,6 @@ process DETECT_CHIMERS_CONTAMINATION {
     container "metashot/gunc:1.0.5-1"
 
     tag "${pair_id}"
-    //publishDir "${params.outdir}/${pair_id}/${params.runName}", mode: 'copy'
 
     input:
     tuple val(pair_id), path(assembly)
@@ -178,13 +177,13 @@ process MERGE_QC {
     container "metashot/gunc:1.0.5-1"
 
     tag "${pair_id}"
-    publishDir "${params.outdir}/${pair_id}/${params.runName}", mode: 'copy'
+    publishDir "${params.outdir}/${params.runName}/${pair_id}", mode: 'copy'
 
     input:
     tuple val(pair_id), path(checkm_f), path(gunc_f)
 
     output:
-    tuple val(pair_id), path("qc/*.tsv")
+    path("qc/*.tsv")
 
     script:
     """
@@ -198,19 +197,23 @@ process CLASSIFICATION {
     container "theoaphidian/gtdbtk-entry"
     containerOptions "-v ${params.gtdb_db}:/refdata"
 
-    tag "${pair_id}"
-    publishDir "${params.outdir}/${pair_id}/${params.runName}", mode: 'copy'
+    publishDir "${params.outdir}/${params.runName}", mode: 'copy'
 
     input:
-    tuple val(pair_id), path(assembly)
+    path('assembly/*')
     path(gtdb_db)
     path(mash_db)
 
     output:
-    tuple val(pair_id), path(output)
+    path(output)
     script:
+    def fastani = params.skip_fastani ? "--mash_db mash_db" : "--skip_ani_screen"
     """
-    gtdbtk classify_wf --genome_dir assembly --prefix "${pair_id}_gtdbtk" --out_dir "output" --cpus $task.cpus --mash_db mash_db
+    gtdbtk classify_wf \
+    --genome_dir assembly \
+    --out_dir "output" \
+    --cpus $task.cpus \
+    $fastani
     """
 }    
 
@@ -220,19 +223,22 @@ workflow {
     paramsUsed()
     
     // Read samplesheet: find and update paths to reads (externalize from nf?)
-    if (!params.skip_samplesheet) {
+    def process_samplesheet = params.skip_samplesheet ? false : true
+    if (process_samplesheet) {
     	READ_SAMPLESHEET(file(params.samplesheet, checkIfExists: true), file(params.samplesheet).getParent()) 
 
     	// Extract reads from samplesheet
     	READ_SAMPLESHEET.out.samplesheetAbsolute
         	.splitCsv(header: true, sep: "\t") 
         	.map {row -> tuple(row.ID, tuple(file(row.fw_reads), file(row.rv_reads)))}
-        	.set{reads_ch}
+        	.take( params.debug ? 2 : -1 )
+                .set{reads_ch}
     } else {
 	reads_ch = Channel.fromFilePairs(params.reads)
     }
 
-    if (!params.skip_fastp){
+    def execute_fastp = params.skip_fastp ? false : true
+    if (execute_fastp){
 
         //Filter and trim using fastp
         FASTP(reads_ch)
@@ -261,11 +267,22 @@ workflow {
         DETECT_CHIMERS_CONTAMINATION(assembly_ch, file(params.gunc_db))
             .set { gunc_ch }
         MERGE_QC(checkm_ch.join(gunc_ch))
+            .collectFile(
+                keepHeader: true, 
+                name: "qc_checkm_gunc.tsv", 
+                storeDir: "${params.outdir}/${params.runName}")
     }
     // Annotation genes
     ANNOTATION(assembly_ch)
     if (params.gtdb_db != null) {
         // Classification
-        CLASSIFICATION(assembly_ch, file(params.gtdb_db), file(params.mash_db))
+        // Collect all results
+	def contig_pattern = params.outdir + "/**_contigs.fna"
+        Channel
+            .fromPath(contig_pattern)
+            .collect()
+            .set{ assemblies_ch }
+
+        CLASSIFICATION(assemblies_ch, file(params.gtdb_db), file(params.mash_db))
     }
 }
