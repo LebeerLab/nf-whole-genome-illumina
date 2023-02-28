@@ -137,10 +137,76 @@ class SampleSheet:
     def write_samplesheet(self):
         self.content.to_csv(CORR_SAMPLESHEET, sep="\t", index=False)
 
+    def merge_summaries(self):
+        
+        # Assumption: data will originate from a single run most of the time
+        # Therefore: load summary data in dict of pd objects and fetch results from those
+
+        folder_col = "run_folder"
+        checkm_col = "checkm_gunc"
+        gtdb_col = "gtdb_bac120"
+        
+        col_by_name = {}
+        col_by_name[checkm_col] = "/qc_checkm_gunc.tsv"
+        col_by_name[gtdb_col] = "/gtdbtk.bac120.ani_summary.tsv"
+        
+
+        summary_data = {}
+        summary_data[checkm_col] = {}
+        summary_data[gtdb_col] = {}
+        ## filename : pd.DataFrame
+
+        new_data = self.content.copy() 
+        # ../PROJ/RESULTS/RUN/SAMPLE/ASSEMBLY/contig.fna
+        new_data[folder_col] = new_data[DEF_ASSEMBLY]\
+            .str.split("/").str[:-3]\
+                .str.join("/")
+        
+        df_run_folders = new_data.groupby(folder_col).first()
+        for colname in [checkm_col, gtdb_col]:
+            df_run_folders[colname] = df_run_folders.index.astype(str) + col_by_name[colname]
+        
+        for idx, row in df_run_folders.iterrows():
+            summary_data[checkm_col][row[checkm_col]] = pd.read_table(row[checkm_col])
+            summary_data[gtdb_col][row[gtdb_col]] = pd.read_table(row[gtdb_col])
+
+        # Join back to copy of original data
+        cols_to_keep = df_run_folders.columns.difference(new_data.columns)
+        new_data.index = new_data[folder_col]
+        new_data = pd.merge(new_data, df_run_folders[cols_to_keep], left_index=True, right_index=True, how="left")
+        
+        all_data = {}
+        all_data[checkm_col] = []
+        all_data[gtdb_col] = []
+
+        def _fetch_result_from_df(row, colname_df):
+            #print(row)
+            sample_id = row[DEF_SAMPLE_ID] + "_contigs"
+            if colname_df == gtdb_col:
+                df = summary_data[colname_df][row[gtdb_col]]
+                return df.loc[df["user_genome"] == sample_id,]
+            elif colname_df == checkm_col:
+                #print(sample_id)
+                #print(df["genome"].str.match(sample_id))
+                df = summary_data[colname_df][row[checkm_col]]
+                return df.loc[df["genome"] == sample_id,]
+        
+        
+        for idx, row in new_data.iterrows():
+            #print(_fetch_result_from_df(row, checkm_col))
+            all_data[checkm_col].append(_fetch_result_from_df(row, checkm_col))
+            all_data[gtdb_col].append(_fetch_result_from_df(row, gtdb_col))
+        
+        df_checkm = pd.concat(all_data[checkm_col])
+        df_gtdb = pd.concat(all_data[gtdb_col])
+        self.content = pd.concat([self.content, df_checkm, df_gtdb], axis=1)
+        
+
     def update_sampledb(self):
         # Add absolute root to reads and assembly
         self._build_read_paths(absolute=True)
         self._build_assembly_paths()
+        self.merge_summaries()
         output = self.content
 
         if Path(self.sample_db_samplesheet).exists():

@@ -89,7 +89,7 @@ class ReadSampleSheet(object):
             DEF_SAMPLE_ID,
             DEF_FW_READS,
             DEF_RV_READS,
-            None,
+            args.sample_db_dir,
             None,
             paired,
         )
