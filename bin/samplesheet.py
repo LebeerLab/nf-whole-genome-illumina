@@ -180,20 +180,16 @@ class SampleSheet:
         all_data[gtdb_col] = []
 
         def _fetch_result_from_df(row, colname_df):
-            #print(row)
             sample_id = row[DEF_SAMPLE_ID] + "_contigs"
             if colname_df == gtdb_col:
                 df = summary_data[colname_df][row[gtdb_col]]
                 return df.loc[df["user_genome"] == sample_id,]
             elif colname_df == checkm_col:
-                #print(sample_id)
-                #print(df["genome"].str.match(sample_id))
                 df = summary_data[colname_df][row[checkm_col]]
                 return df.loc[df["genome"] == sample_id,]
         
         
         for idx, row in new_data.iterrows():
-            #print(_fetch_result_from_df(row, checkm_col))
             all_data[checkm_col].append(_fetch_result_from_df(row, checkm_col))
             all_data[gtdb_col].append(_fetch_result_from_df(row, gtdb_col))
         
