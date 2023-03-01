@@ -11,10 +11,11 @@ DEF_RV_READS = "rv_reads"
 DEF_ASSEMBLY = "assembly"
 DEF_RUN = "run01"
 
-def error_message(message):
+def fatal_error_message(message):
     red = '\033[91m'
     end = '\033[0m'
-    return f"{red}{message}{end}"
+    print(f"{red}{message}{end}")
+    exit(1)
 
 
 class SampleSheet:
@@ -49,6 +50,7 @@ class SampleSheet:
         self.root_dir = os.getcwd()
         self.paired_end = paired_end
 
+        # Write mode
         if sample_db_dir is not None:
             self.corrected_sheet = True
             self.sample_db_samplesheet = os.path.join(sample_db_dir, "sampledb.tsv")
@@ -77,8 +79,8 @@ class SampleSheet:
                 assert self.rev_col in smpsh.columns, f"Reverse column {self.rev_col} not found in file with header {smpsh.columns.values}."
             self.content = smpsh
         except AssertionError as e:
-            print(error_message(f"Error during reading samplesheet:\n{e}"))
-            exit(1)
+            fatal_error_message(f"Error during reading samplesheet:\n{e}")
+
 
     def _build_read_paths(self, absolute=False):
         # Update paths to rel paths.
@@ -125,7 +127,9 @@ class SampleSheet:
         ]
 
     def write_samplesheet(self):
-        self.content.to_csv(CORR_SAMPLESHEET, sep="\t", index=False)
+        self.content.to_csv(os.path.join(
+            os.path.dirname(self.filename),CORR_SAMPLESHEET), 
+            sep="\t", index=False)
 
     def merge_summaries(self):
         
@@ -210,7 +214,7 @@ class SampleSheet:
                 .str.split("/")\
                 .str[0]
             except Exception as e:
-                error_message(
+                fatal_error_message(
                     f"Parent folder '{parent_folder}' not found. {e}"
                 )
 
@@ -225,7 +229,11 @@ class SampleSheet:
         )
 
         # Add QC and class info
-        self.merge_summaries()
+        try:
+            self.merge_summaries()
+        except FileNotFoundError:
+            fatal_error_message("Results folder not found!")
+        
         # Remove following fields
         cols_to_remove = [
             "genome",
