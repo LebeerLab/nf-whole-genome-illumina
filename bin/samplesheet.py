@@ -103,17 +103,7 @@ class SampleSheet:
         self._build_read_paths()
         # Add run_name as column
         self.content["run_id"] = self.run_id
-        # Generate uqid
-        uqid_columns = ["run_id", self.fw_col]
-        if self.paired_end:
-            uqid_columns.append(self.rev_col)
-        self.content["uqid"] = (
-            self.content[uqid_columns]
-            .astype(str)
-            .agg("".join, axis=1)
-            .map(generate_uqid)
-        )
-
+        
         # Rename ID, rv_read, fw_read cols to fixed names
         colnames = {
                 self.sample_col: DEF_SAMPLE_ID,
@@ -203,6 +193,17 @@ class SampleSheet:
         self._build_read_paths(absolute=True)
         self._build_assembly_paths()
         self.merge_summaries()
+
+        # Generate uqid
+        uqid_columns = ["run_id", DEF_FW_READS]
+        
+        self.content["uqid"] = (
+            self.content[uqid_columns]
+            .astype(str)
+            .agg("".join, axis=1)
+            .map(generate_uqid)
+        )
+
         output = self.content
 
         if Path(self.sample_db_samplesheet).exists():
