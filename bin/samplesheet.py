@@ -192,7 +192,6 @@ class SampleSheet:
         # Add absolute root to reads and assembly
         self._build_read_paths(absolute=True)
         self._build_assembly_paths()
-        self.merge_summaries()
 
         # Generate uqid
         uqid_columns = ["run_id", DEF_FW_READS]
@@ -203,6 +202,42 @@ class SampleSheet:
             .agg("".join, axis=1)
             .map(generate_uqid)
         )
+
+        def extract_child_folder_name(read_paths:pd.Series, parent_folder):
+            try:
+                return read_paths.str.split("/" + parent_folder + "/")\
+                .str[-1]\
+                .str.split("/")\
+                .str[0]
+            except Exception as e:
+                error_message(
+                    f"Parent folder '{parent_folder}' not found. {e}"
+                )
+
+        # Extract platform
+        self.content["platform"] = extract_child_folder_name(
+            self.content[DEF_FW_READS], "seqdata"
+        )
+
+        # Extract project name
+        self.content["project"] = extract_child_folder_name(
+            self.content[DEF_FW_READS], "projects"
+        )
+
+        # Add QC and class info
+        self.merge_summaries()
+        # Remove following fields
+        cols_to_remove = [
+            "genome",
+            "GUNC.n_contigs",
+            "GUNC.n_genes_called",
+            "GUNC.n_genes_mapped",
+            "GUNC.divergence_level",
+            "pass.MIMAG_medium",
+            "pass.MIMAG_high",
+            "user_genome",
+        ]
+        self.content = self.content.drop(columns=cols_to_remove, errors="ignore")
 
         output = self.content
 
