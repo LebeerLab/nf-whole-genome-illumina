@@ -128,7 +128,7 @@ class SampleSheet:
 
     def write_samplesheet(self):
         self.content.to_csv(os.path.join(
-            os.path.dirname(self.filename),CORR_SAMPLESHEET), 
+            os.path.dirname(CORR_SAMPLESHEET), 
             sep="\t", index=False)
 
     def merge_summaries(self):
