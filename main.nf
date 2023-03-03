@@ -201,7 +201,8 @@ process CLASSIFICATION {
     publishDir "${params.outdir}/${params.runName}", mode: 'copy'
 
     input:
-    path('assembly/*')
+    val(sample)
+    path('assembly/*', stageAs: "assembly/*")
     path(gtdb_db)
     path(mash_db)
 
@@ -213,7 +214,9 @@ process CLASSIFICATION {
     gtdbtk classify_wf \
     --genome_dir assembly \
     --out_dir "output" \
-    --cpus 1 \
+    --cpus ${task.cpus} \
+    --pplacer_cpus 1 \
+    --scratch_dir tmp \
     $fastani
     """
 }    
@@ -287,11 +290,18 @@ workflow {
     if (params.gtdb_db != null) {
     // Classification
         // Collect all results
-        assembly_ch
-	    .map { it[1] }
+        def contig_pattern = params.outdir + "/**_contigs.fna"
+        Channel
+            .fromPath(contig_pattern)
             .collect()
             .set{ assemblies_ch }
 
-        CLASSIFICATION(assemblies_ch, file(params.gtdb_db), file(params.mash_db))
+        assembly_ch
+	    .map { it[0] }
+            .collect()
+            .set{ samples_completed }
+
+
+        CLASSIFICATION(samples_completed, assemblies_ch, file(params.gtdb_db), file(params.mash_db))
     }
 }
