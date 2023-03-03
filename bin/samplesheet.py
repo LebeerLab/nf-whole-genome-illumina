@@ -127,8 +127,8 @@ class SampleSheet:
         ]
 
     def write_samplesheet(self):
-        self.content.to_csv(os.path.join(
-            os.path.dirname(CORR_SAMPLESHEET), 
+        self.content.to_csv(
+            CORR_SAMPLESHEET, 
             sep="\t", index=False)
 
     def merge_summaries(self):
@@ -263,7 +263,7 @@ class SampleSheet:
     def _fetch_filepath(self, inp_files, absolute=False, is_assembly=False):
         def simplify_samplenames(filenames: pd.Series) -> pd.Series:
             return filenames.apply(
-                lambda x: x.lower().split(".")[0].split("/")[-1].strip()
+                lambda x: str(x).lower().split(".")[0].split("/")[-1].strip()
             )
 
         def simplify_samplename(filename: str) -> str:

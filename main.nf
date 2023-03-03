@@ -195,7 +195,6 @@ process MERGE_QC {
 }
 
 process CLASSIFICATION {
-    errorStrategy 'ignore'
     container "theoaphidian/gtdbtk-entry"
     containerOptions "-v ${params.gtdb_db}:/refdata"
 
@@ -214,7 +213,7 @@ process CLASSIFICATION {
     gtdbtk classify_wf \
     --genome_dir assembly \
     --out_dir "output" \
-    --cpus $task.cpus \
+    --cpus 1 \
     $fastani
     """
 }    
@@ -288,9 +287,8 @@ workflow {
     if (params.gtdb_db != null) {
     // Classification
         // Collect all results
-	def contig_pattern = params.outdir + "/**_contigs.fna"
-        Channel
-            .fromPath(contig_pattern)
+        assembly_ch
+	    .map { it[1] }
             .collect()
             .set{ assemblies_ch }
 
