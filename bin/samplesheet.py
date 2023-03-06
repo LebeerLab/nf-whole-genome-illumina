@@ -11,9 +11,10 @@ DEF_RV_READS = "rv_reads"
 DEF_ASSEMBLY = "assembly"
 DEF_RUN = "run01"
 
+
 def fatal_error_message(message):
-    red = '\033[91m'
-    end = '\033[0m'
+    red = "\033[91m"
+    end = "\033[0m"
     print(f"{red}{message}{end}")
     exit(1)
 
@@ -27,19 +28,19 @@ class SampleSheet:
         rev_col=DEF_RV_READS,
         sample_db_dir=None,
         run_id=None,
-        paired_end=True
+        paired_end=True,
     ) -> None:
         # Validation input
         self.paired_end = paired_end
         if sample_col == None:
             sample_col = DEF_SAMPLE_ID
-        
+
         ## Assume if fw_col is given, that this is on purpose (eg single reads)
         if fw_col == None:
             fw_col = DEF_FW_READS
         if paired_end and rev_col == None:
             rev_col = DEF_RV_READS
-        
+
         if run_id == None:
             run_id = DEF_RUN
 
@@ -68,19 +69,22 @@ class SampleSheet:
         try:
             if self.filename.endswith(".tsv"):
                 smpsh = pd.read_table(self.filename)
-                
+
             ## Asumption: it is a csv, could implement xlsx with pd.read_xlsx,
             ## But then need to supply pyopenxlsx dependency in docker...
             else:
                 smpsh = pd.read_csv(self.filename)
             ## Assertion of sample cols
-            assert self.fw_col in smpsh.columns, f"Forward column {self.fw_column} not found in file with header {smpsh.columns.values}."
+            assert (
+                self.fw_col in smpsh.columns
+            ), f"Forward column {self.fw_column} not found in file with header {smpsh.columns.values}."
             if self.paired_end:
-                assert self.rev_col in smpsh.columns, f"Reverse column {self.rev_col} not found in file with header {smpsh.columns.values}."
+                assert (
+                    self.rev_col in smpsh.columns
+                ), f"Reverse column {self.rev_col} not found in file with header {smpsh.columns.values}."
             self.content = smpsh
         except AssertionError as e:
             fatal_error_message(f"Error during reading samplesheet:\n{e}")
-
 
     def _build_read_paths(self, absolute=False):
         # Update paths to rel paths.
@@ -89,10 +93,9 @@ class SampleSheet:
                 [self.fw_col, self.rev_col]
             ].apply(lambda x: self._fetch_filepath(x, absolute))
         else:
-            self.content[[self.fw_col]] = self.content[
-                    [self.fw_col]
-                ].apply(lambda x: self._fetch_filepath(x, absolute))
-                
+            self.content[[self.fw_col]] = self.content[[self.fw_col]].apply(
+                lambda x: self._fetch_filepath(x, absolute)
+            )
 
     def _build_assembly_paths(self):
         # Update paths to absolute paths.
@@ -105,18 +108,16 @@ class SampleSheet:
         self._build_read_paths()
         # Add run_name as column
         self.content["run_id"] = self.run_id
-        
+
         # Rename ID, rv_read, fw_read cols to fixed names
         colnames = {
-                self.sample_col: DEF_SAMPLE_ID,
-                self.fw_col: DEF_FW_READS,
-            }
+            self.sample_col: DEF_SAMPLE_ID,
+            self.fw_col: DEF_FW_READS,
+        }
         if self.paired_end:
             colnames[self.rev_col] = DEF_RV_READS
 
-        self.content.rename(
-            columns=colnames
-        )
+        self.content.rename(columns=colnames)
 
         # Add resulting assembly path as column
         # RESULTS / RUN / ID/ ASSEMBLY / ID_contigs.fna
@@ -127,39 +128,43 @@ class SampleSheet:
         ]
 
     def write_samplesheet(self):
-        self.content.to_csv(
-            CORR_SAMPLESHEET, 
-            sep="\t", index=False)
+        self.content.to_csv(CORR_SAMPLESHEET, sep="\t", index=False)
 
     def merge_summaries(self):
-        
+
         # Assumption: data will originate from a single run most of the time
         # Therefore: load summary data in dict of pd objects and fetch results from those
 
         folder_col = "run_folder"
         checkm_col = "checkm_gunc"
         gtdb_col = "gtdb_bac120"
-        
+
         col_by_name = {}
         col_by_name[checkm_col] = "/qc_checkm_gunc.tsv"
-        col_by_name[gtdb_col] = "/gtdbtk.bac120.ani_summary.tsv"
-        
+        # Depends on the output obtained from classification...
+        for filename in os.listdir(self.root_dir + "/results/" + self.run_id):
+            if filename.endswith("summary.tsv"):
+                classification_tsv = filename
+
+        col_by_name[gtdb_col] = f"/{classification_tsv}"
 
         summary_data = {}
         summary_data[checkm_col] = {}
         summary_data[gtdb_col] = {}
         ## filename : pd.DataFrame
 
-        new_data = self.content.copy() 
+        new_data = self.content.copy()
         # ../PROJ/RESULTS/RUN/SAMPLE/ASSEMBLY/contig.fna
-        new_data[folder_col] = new_data[DEF_ASSEMBLY]\
-            .str.split("/").str[:-3]\
-                .str.join("/")
-        
+        new_data[folder_col] = (
+            new_data[DEF_ASSEMBLY].str.split("/").str[:-3].str.join("/")
+        )
+
         df_run_folders = new_data.groupby(folder_col).first()
         for colname in [checkm_col, gtdb_col]:
-            df_run_folders[colname] = df_run_folders.index.astype(str) + col_by_name[colname]
-        
+            df_run_folders[colname] = (
+                df_run_folders.index.astype(str) + col_by_name[colname]
+            )
+
         for idx, row in df_run_folders.iterrows():
             summary_data[checkm_col][row[checkm_col]] = pd.read_table(row[checkm_col])
             summary_data[gtdb_col][row[gtdb_col]] = pd.read_table(row[gtdb_col])
@@ -167,8 +172,14 @@ class SampleSheet:
         # Join back to copy of original data
         cols_to_keep = df_run_folders.columns.difference(new_data.columns)
         new_data.index = new_data[folder_col]
-        new_data = pd.merge(new_data, df_run_folders[cols_to_keep], left_index=True, right_index=True, how="left")
-        
+        new_data = pd.merge(
+            new_data,
+            df_run_folders[cols_to_keep],
+            left_index=True,
+            right_index=True,
+            how="left",
+        )
+
         all_data = {}
         all_data[checkm_col] = []
         all_data[gtdb_col] = []
@@ -177,20 +188,22 @@ class SampleSheet:
             sample_id = row[DEF_SAMPLE_ID] + "_contigs"
             if colname_df == gtdb_col:
                 df = summary_data[colname_df][row[gtdb_col]]
-                return df.loc[df["user_genome"] == sample_id,]
+                return df.loc[
+                    df["user_genome"] == sample_id,
+                ]
             elif colname_df == checkm_col:
                 df = summary_data[colname_df][row[checkm_col]]
-                return df.loc[df["genome"] == sample_id,]
-        
-        
+                return df.loc[
+                    df["genome"] == sample_id,
+                ]
+
         for idx, row in new_data.iterrows():
             all_data[checkm_col].append(_fetch_result_from_df(row, checkm_col))
             all_data[gtdb_col].append(_fetch_result_from_df(row, gtdb_col))
-        
+
         df_checkm = pd.concat(all_data[checkm_col])
         df_gtdb = pd.concat(all_data[gtdb_col])
         self.content = pd.concat([self.content, df_checkm, df_gtdb], axis=1)
-        
 
     def update_sampledb(self):
         # Add absolute root to reads and assembly
@@ -199,7 +212,7 @@ class SampleSheet:
 
         # Generate uqid
         uqid_columns = ["run_id", DEF_FW_READS]
-        
+
         self.content["uqid"] = (
             self.content[uqid_columns]
             .astype(str)
@@ -207,16 +220,16 @@ class SampleSheet:
             .map(generate_uqid)
         )
 
-        def extract_child_folder_name(read_paths:pd.Series, parent_folder):
+        def extract_child_folder_name(read_paths: pd.Series, parent_folder):
             try:
-                return read_paths.str.split("/" + parent_folder + "/")\
-                .str[-1]\
-                .str.split("/")\
-                .str[0]
-            except Exception as e:
-                fatal_error_message(
-                    f"Parent folder '{parent_folder}' not found. {e}"
+                return (
+                    read_paths.str.split("/" + parent_folder + "/")
+                    .str[-1]
+                    .str.split("/")
+                    .str[0]
                 )
+            except Exception as e:
+                fatal_error_message(f"Parent folder '{parent_folder}' not found. {e}")
 
         # Extract platform
         self.content["platform"] = extract_child_folder_name(
@@ -231,9 +244,9 @@ class SampleSheet:
         # Add QC and class info
         try:
             self.merge_summaries()
-        except FileNotFoundError:
-            fatal_error_message("Results folder not found!")
-        
+        except FileNotFoundError as e:
+            fatal_error_message(f"Results folder not found! {e}")
+
         # Remove following fields
         cols_to_remove = [
             "genome",
