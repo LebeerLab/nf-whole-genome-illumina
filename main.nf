@@ -170,8 +170,7 @@ process DETECT_CHIMERS_CONTAMINATION {
     """
     gunc run --input_dir assembly -r ${guncdb} \
         --file_suffix .fna \
-        --threads ${task.cpus} \
-        
+        --threads ${task.cpus}        
     """
 }
 
@@ -195,57 +194,53 @@ process MERGE_QC {
 }
 
 process CLASSIFICATION {
-    errorStrategy 'ignore'
     container "theoaphidian/gtdbtk-entry"
     containerOptions "-v ${params.gtdb_db}:/refdata"
 
     publishDir "${params.outdir}/${params.runName}", mode: 'copy'
 
     input:
-    path('assembly/*')
+    path('*.fna')
     path(gtdb_db)
     path(mash_db)
 
     output:
-    path(output)
+    path("*.tsv")
     script:
     def fastani = params.skip_fastani ? "--mash_db mash_db" : "--skip_ani_screen"
     """
     gtdbtk classify_wf \
-    --genome_dir assembly \
+    --genome_dir . \
     --out_dir "output" \
-    --cpus $task.cpus \
+    --cpus ${task.cpus} \
+    --pplacer_cpus 1 \
+    --scratch_dir tmp \
     $fastani
     """
 }    
 
 
-workflow {
-    
-    paramsUsed()
+workflow assembly {    
+    main:
     
     // Read samplesheet: find and update paths to reads (externalize from nf?)
-    def process_samplesheet = params.skip_samplesheet ? false : true
-    if (process_samplesheet) {
-    	READ_SAMPLESHEET(file(params.samplesheet, checkIfExists: true), file(params.samplesheet).getParent()) 
+    
+    READ_SAMPLESHEET(file(params.samplesheet, checkIfExists: true), file(params.samplesheet).getParent()) 
 
-    	// Extract reads from samplesheet
-    	READ_SAMPLESHEET.out.samplesheetAbsolute
-        	.splitCsv(header: true, sep: "\t") 
-        	.take( params.debug ? 2 : -1 )
-		.set{reads_intermediate}
+    // Extract reads from samplesheet
+    READ_SAMPLESHEET.out.samplesheetAbsolute
+        .splitCsv(header: true, sep: "\t") 
+        .take( params.debug ? 2 : -1 )
+	.set{reads_intermediate}
 
-        if (params.single_end) {
-            reads_intermediate
-                .map {row -> tuple(row.ID, file(row.fw_reads))}
-                .set{reads_ch}
-        } else {
-            reads_intermediate
-        	.map {row -> tuple(row.ID, tuple(file(row.fw_reads), file(row.rv_reads)))}
-                .set{reads_ch}        
-        }
+    if (params.single_end) {
+        reads_intermediate
+            .map {row -> tuple(row.ID, file(row.fw_reads))}
+            .set{reads_ch}
     } else {
-	reads_ch = Channel.fromFilePairs(params.reads)
+        reads_intermediate
+            .map {row -> tuple(row.ID, tuple(file(row.fw_reads), file(row.rv_reads)))}
+            .set{reads_ch}        
     }
 
     def execute_fastp = params.skip_fastp ? false : true
@@ -270,6 +265,9 @@ workflow {
     // Shovil assembly
     ASSEMBLY(filteredReads)
         .set{ assembly_ch }
+
+    contigs_ch = assembly_ch
+                     .collect{it[1] + "/*_contigs.fna"}
     
     // QC  
     CHECKM(assembly_ch)
@@ -285,15 +283,24 @@ workflow {
     }
     // Annotation genes
     ANNOTATION(assembly_ch)
-    if (params.gtdb_db != null) {
-    // Classification
-        // Collect all results
-	def contig_pattern = params.outdir + "/**_contigs.fna"
-        Channel
-            .fromPath(contig_pattern)
-            .collect()
-            .set{ assemblies_ch }
+    emit:
+        contigs_ch
+}
 
-        CLASSIFICATION(assemblies_ch, file(params.gtdb_db), file(params.mash_db))
+workflow classification {
+    take: contigs
+    main:
+    if (params.gtdb_db != null) {
+      
+        CLASSIFICATION(contigs, file(params.gtdb_db), file(params.mash_db))
     }
+}
+
+
+workflow {
+    paramsUsed()
+    assembly()
+    assembly.out
+        .view()
+    classification(assembly.out)
 }
