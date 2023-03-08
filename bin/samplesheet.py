@@ -28,14 +28,14 @@ class SampleSheet:
         rev_col=DEF_RV_READS,
         sample_db_dir=None,
         run_id=None,
-        paired_end=True
+        paired_end=True,
     ) -> None:
         # Validation input
         self.paired_end = paired_end
         if sample_col == None:
             sample_col = DEF_SAMPLE_ID
 
-## Assume if fw_col is given, that this is on purpose (eg single reads)
+        ## Assume if fw_col is given, that this is on purpose (eg single reads)
         if fw_col == None:
             fw_col = DEF_FW_READS
         if paired_end and rev_col == None:
@@ -50,7 +50,6 @@ class SampleSheet:
         self.run_id = run_id
         self.root_dir = os.getcwd()
         self.paired_end = paired_end
-
 
         # Write mode
 
@@ -89,7 +88,6 @@ class SampleSheet:
         except AssertionError as e:
             fatal_error_message(f"Error during reading samplesheet:\n{e}")
 
-
     def _build_read_paths(self, absolute=False):
         # Update paths to rel paths.
         if self.paired_end:
@@ -100,7 +98,6 @@ class SampleSheet:
             self.content[[self.fw_col]] = self.content[[self.fw_col]].apply(
                 lambda x: self._fetch_filepath(x, absolute)
             )
-
 
     def _build_assembly_paths(self):
         # Update paths to absolute paths.
@@ -134,7 +131,6 @@ class SampleSheet:
 
     def write_samplesheet(self):
         self.content.to_csv(CORR_SAMPLESHEET, sep="\t", index=False)
-
 
     def merge_summaries(self):
 
@@ -211,8 +207,7 @@ class SampleSheet:
         df_gtdb = pd.concat(all_data[gtdb_col])
         self.content = pd.concat([self.content, df_checkm, df_gtdb], axis=1)
 
-
-def update_sampledb(self):
+    def update_sampledb(self):
         # Add absolute root to reads and assembly
         self._build_read_paths(absolute=True)
         self._build_assembly_paths()

@@ -67,11 +67,11 @@ class ReadSampleSheet(object):
             args.run_name,
             paired,
         )
-       
+
         smpsh.read_samplesheet()
         smpsh.update_samplesheet()
         smpsh.write_samplesheet()
-       
+
     def write(self):
 
         parser = argparse.ArgumentParser(
