@@ -200,14 +200,14 @@ process CLASSIFICATION {
     publishDir "${params.outdir}/${params.runName}", mode: 'copy'
 
     input:
-    path('*.fna')
+    path(contigs)
     path(gtdb_db)
     path(mash_db)
 
     output:
-    path("*.tsv")
+    path("*summary.tsv")
     script:
-    def fastani = params.skip_fastani ? "--mash_db mash_db" : "--skip_ani_screen"
+    def fastani = params.skip_fastani ? "--skip_ani_screen" : "--mash_db mash_db"
     """
     gtdbtk classify_wf \
     --genome_dir . \
@@ -216,6 +216,7 @@ process CLASSIFICATION {
     --pplacer_cpus 1 \
     --scratch_dir tmp \
     $fastani
+    mv output/*summary.tsv .
     """
 }    
 
@@ -267,7 +268,7 @@ workflow assembly {
         .set{ assembly_ch }
 
     contigs_ch = assembly_ch
-                     .collect{it[1] + "/*_contigs.fna"}
+                     .collect{it[1] + "/${it[0]}_contigs.fna"}
     
     // QC  
     CHECKM(assembly_ch)
@@ -296,11 +297,8 @@ workflow classification {
     }
 }
 
-
 workflow {
     paramsUsed()
     assembly()
-    assembly.out
-        .view()
     classification(assembly.out)
 }
