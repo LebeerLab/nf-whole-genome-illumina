@@ -52,6 +52,7 @@ class SampleSheet:
         self.paired_end = paired_end
 
         # Write mode
+
         if sample_db_dir is not None:
             self.corrected_sheet = True
             self.sample_db_samplesheet = os.path.join(sample_db_dir, "sampledb.tsv")
@@ -75,6 +76,7 @@ class SampleSheet:
             else:
                 smpsh = pd.read_csv(self.filename)
             ## Assertion of sample cols
+
             assert (
                 self.fw_col in smpsh.columns
             ), f"Forward column {self.fw_column} not found in file with header {smpsh.columns.values}."
