@@ -218,7 +218,24 @@ process CLASSIFICATION {
     $fastani
     mv output/*summary.tsv .
     """
-}    
+}
+
+process ANTISMASH {
+    tag "${pair_id}"
+
+    publishDir "${params.outdir}/${params.runName}/${pair_id}", mode: 'copy'
+
+    input:
+    tuple val(pair_id), path(assembly) 
+
+    output:
+    tuple val(pair_id), path("antismash/*")
+    script:
+    """
+    run_antismash "${assembly}/${pair_id}_contigs.fna" "antismash" -c ${task.cpus} 
+    """
+
+}
 
 
 workflow assembly {    
@@ -284,6 +301,7 @@ workflow assembly {
     }
     // Annotation genes
     ANNOTATION(assembly_ch)
+    ANTISMASH(assembly_ch)
     emit:
         contigs_ch
 }
