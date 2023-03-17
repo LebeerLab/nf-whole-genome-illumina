@@ -206,6 +206,7 @@ process CLASSIFICATION {
 
     output:
     path("*summary.tsv")
+
     script:
     def fastani = params.skip_fastani ? "--skip_ani_screen" : "--mash_db mash_db"
     """
@@ -218,7 +219,29 @@ process CLASSIFICATION {
     $fastani
     mv output/*summary.tsv .
     """
-}    
+}
+
+process ANTISMASH {
+    container null
+    tag "${pair_id}"
+
+    publishDir "${params.outdir}/${params.runName}/${pair_id}", mode: 'copy'
+
+    input:
+    tuple val(pair_id), path(annotation) 
+
+    output:
+    tuple val(pair_id), path("antismash/*")
+    script:
+    """
+    gunzip -c $annotation > antismash.gbk
+    run_antismash antismash.gbk antismash_out -c ${task.cpus} --genefinding-tool none
+    cd antismash_out/ 
+    rm  antismash/*.gbk antismash/*.zip
+    mv antismash ..  
+    """
+
+}
 
 
 workflow assembly {    
@@ -284,6 +307,14 @@ workflow assembly {
     }
     // Annotation genes
     ANNOTATION(assembly_ch)
+        // grab AMB.gbk.gz file from output
+        .map { it -> [it[0], 
+                      file(it[1] + "/${it[0]}.gbk.gz")
+                     ] 
+             }
+	.set { predicted_genes_ch }
+
+    ANTISMASH(predicted_genes_ch)
     emit:
         contigs_ch
 }
