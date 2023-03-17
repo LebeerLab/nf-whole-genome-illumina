@@ -235,7 +235,7 @@ process ANTISMASH {
     script:
     """
     gunzip -c $annotation > antismash.gbk
-    run_antismash annot.gbk antismash -c ${task.cpus} --genefinding-tool none
+    run_antismash antismash.gbk antismash -c ${task.cpus} --genefinding-tool none
     cd antismash/ 
     rm  antismash/*.gbk antismash/*.zip  
     """
