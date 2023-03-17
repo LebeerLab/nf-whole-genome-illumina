@@ -170,6 +170,7 @@ class SampleSheet:
         for idx, row in df_run_folders.iterrows():
             summary_data[checkm_col][row[checkm_col]] = pd.read_table(row[checkm_col])
             summary_data[gtdb_col][row[gtdb_col]] = pd.read_table(row[gtdb_col])
+
             if "reference_genome" in summary_data[gtdb_col][row[gtdb_col]].columns:
                 summary_data[gtdb_col][row[gtdb_col]] = summary[gtdb_col][
                     row[gtdb_col]

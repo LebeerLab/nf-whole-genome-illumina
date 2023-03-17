@@ -206,6 +206,7 @@ process CLASSIFICATION {
 
     output:
     path("*summary.tsv")
+
     script:
     def fastani = params.skip_fastani ? "--skip_ani_screen" : "--mash_db mash_db"
     """
