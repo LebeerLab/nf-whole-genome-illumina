@@ -225,7 +225,7 @@ process ANTISMASH {
     container null
     tag "${pair_id}"
 
-    publishDir "${params.outdir}/${params.runName}/${pair_id}/antismash", mode: 'copy'
+    publishDir "${params.outdir}/${params.runName}/${pair_id}", mode: 'copy'
 
     input:
     tuple val(pair_id), path(annotation) 
@@ -234,8 +234,10 @@ process ANTISMASH {
     tuple val(pair_id), path("antismash/*")
     script:
     """
-    gunzip -c $annotation > annot.gbk
-    run_antismash annot.gbk antismash -c ${task.cpus} --genefinding-tool none 
+    gunzip -c $annotation > antismash.gbk
+    run_antismash annot.gbk antismash -c ${task.cpus} --genefinding-tool none
+    cd antismash/ 
+    rm  antismash/*.gbk antismash/*.zip  
     """
 
 }
