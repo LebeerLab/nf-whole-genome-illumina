@@ -171,6 +171,16 @@ class SampleSheet:
             summary_data[checkm_col][row[checkm_col]] = pd.read_table(row[checkm_col])
             summary_data[gtdb_col][row[gtdb_col]] = pd.read_table(row[gtdb_col])
 
+            if "reference_genome" in summary_data[gtdb_col][row[gtdb_col]].columns:
+                summary_data[gtdb_col][row[gtdb_col]] = summary[gtdb_col][
+                    row[gtdb_col]
+                ].rename(
+                    columns={
+                        "reference_genome": "fastani_reference",
+                        "reference_taxonomy": "fastani_taxonomy",
+                    }
+                )
+
         # Join back to copy of original data
         cols_to_keep = df_run_folders.columns.difference(new_data.columns)
         new_data.index = new_data[folder_col]

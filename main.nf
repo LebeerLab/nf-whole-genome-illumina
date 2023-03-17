@@ -200,14 +200,15 @@ process CLASSIFICATION {
     publishDir "${params.outdir}/${params.runName}", mode: 'copy'
 
     input:
-    path('*.fna')
+    path(contigs)
     path(gtdb_db)
     path(mash_db)
 
     output:
-    path("*.tsv")
+    path("*summary.tsv")
+
     script:
-    def fastani = params.skip_fastani ? "--mash_db mash_db" : "--skip_ani_screen"
+    def fastani = params.skip_fastani ? "--skip_ani_screen" : "--mash_db mash_db"
     """
     gtdbtk classify_wf \
     --genome_dir . \
@@ -216,8 +217,31 @@ process CLASSIFICATION {
     --pplacer_cpus 1 \
     --scratch_dir tmp \
     $fastani
+    mv output/*summary.tsv .
     """
-}    
+}
+
+process ANTISMASH {
+    container null
+    tag "${pair_id}"
+
+    publishDir "${params.outdir}/${params.runName}/${pair_id}", mode: 'copy'
+
+    input:
+    tuple val(pair_id), path(annotation) 
+
+    output:
+    tuple val(pair_id), path("antismash/*")
+    script:
+    """
+    gunzip -c $annotation > antismash.gbk
+    run_antismash antismash.gbk antismash_out -c ${task.cpus} --genefinding-tool none
+    cd antismash_out/ 
+    rm  antismash/*.gbk antismash/*.zip
+    mv antismash ..  
+    """
+
+}
 
 
 workflow assembly {    
@@ -267,7 +291,7 @@ workflow assembly {
         .set{ assembly_ch }
 
     contigs_ch = assembly_ch
-                     .collect{it[1] + "/*_contigs.fna"}
+                     .collect{it[1] + "/${it[0]}_contigs.fna"}
     
     // QC  
     CHECKM(assembly_ch)
@@ -283,6 +307,14 @@ workflow assembly {
     }
     // Annotation genes
     ANNOTATION(assembly_ch)
+        // grab AMB.gbk.gz file from output
+        .map { it -> [it[0], 
+                      file(it[1] + "/${it[0]}.gbk.gz")
+                     ] 
+             }
+	.set { predicted_genes_ch }
+
+    ANTISMASH(predicted_genes_ch)
     emit:
         contigs_ch
 }
@@ -296,11 +328,8 @@ workflow classification {
     }
 }
 
-
 workflow {
     paramsUsed()
     assembly()
-    assembly.out
-        .view()
     classification(assembly.out)
 }
