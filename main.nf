@@ -221,18 +221,20 @@ process CLASSIFICATION {
 }
 
 process ANTISMASH {
+    container null
     tag "${pair_id}"
 
-    publishDir "${params.outdir}/${params.runName}/${pair_id}", mode: 'copy'
+    publishDir "${params.outdir}/${params.runName}/${pair_id}/antismash", mode: 'copy'
 
     input:
-    tuple val(pair_id), path(assembly) 
+    tuple val(pair_id), path(annotation) 
 
     output:
     tuple val(pair_id), path("antismash/*")
     script:
     """
-    run_antismash "${assembly}/${pair_id}_contigs.fna" "antismash" -c ${task.cpus} 
+    gunzip -c $annotation > annot.gbk
+    run_antismash annot.gbk antismash -c ${task.cpus} --genefinding-tool none 
     """
 
 }
@@ -301,7 +303,14 @@ workflow assembly {
     }
     // Annotation genes
     ANNOTATION(assembly_ch)
-    ANTISMASH(assembly_ch)
+        // grab AMB.gbk.gz file from output
+        .map { it -> [it[0], 
+                      file(it[1] + "/${it[0]}.gbk.gz")
+                     ] 
+             }
+	.set { predicted_genes_ch }
+
+    ANTISMASH(predicted_genes_ch)
     emit:
         contigs_ch
 }
