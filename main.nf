@@ -91,8 +91,6 @@ if (params.help  || params.h){
 }
 
 process ASSEMBLY {
-    container "staphb/shovill:latest"
-
     tag "${pair_id}" 
 
     publishDir "${params.outdir}/${params.runName}/${pair_id}", mode: 'copy'
@@ -117,7 +115,6 @@ process ASSEMBLY {
 }
 
 process PLASMID_ASSEMBLY{
-    container "staphb/spades:latest"
     tag "${pair_id}"
 
     publishDir "${params.outdir}/${params.runName}/${pair_id}", mode: 'copy'
@@ -145,11 +142,7 @@ process PLASMID_ASSEMBLY{
 }
 
 process CHECKM {
-    container "nanozoo/checkm:latest"
-
     tag "${pair_id}" 
-
-    //publishDir "${params.outdir}/${params.runName}/${pair_id}", mode: 'copy'
 
     input:
     tuple val(pair_id), path(assembly)
@@ -166,8 +159,6 @@ process CHECKM {
 
 
 process ANNOTATION {
-    container "staphb/prokka"
-
     tag "${pair_id}"
     publishDir "${params.outdir}/${params.runName}/${pair_id}", mode: 'copy'
 
@@ -185,8 +176,6 @@ process ANNOTATION {
 }
 
 process DETECT_CHIMERS_CONTAMINATION {
-    container "metashot/gunc:1.0.5-1"
-
     tag "${pair_id}"
 
     input:
@@ -205,8 +194,6 @@ process DETECT_CHIMERS_CONTAMINATION {
 }
 
 process MERGE_QC {
-    container "metashot/gunc:1.0.5-1"
-
     tag "${pair_id}"
     publishDir "${params.outdir}/${params.runName}/${pair_id}", mode: 'copy'
 
@@ -224,9 +211,6 @@ process MERGE_QC {
 }
 
 process CLASSIFICATION {
-    container "theoaphidian/gtdbtk-entry"
-    containerOptions "-v ${params.gtdb_db}:/refdata"
-
     publishDir "${params.outdir}/${params.runName}", mode: 'copy'
 
     input:
@@ -251,7 +235,6 @@ process CLASSIFICATION {
 }
 
 process ANTISMASH {
-    container null
     tag "${pair_id}"
 
     publishDir "${params.outdir}/${params.runName}/${pair_id}", mode: 'copy'
