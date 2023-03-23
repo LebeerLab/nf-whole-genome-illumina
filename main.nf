@@ -24,6 +24,7 @@ params.skip_samplesheet = false
 params.skip_fastp = false
 params.skip_fastani = false
 params.single_end = false
+params.plasmids_only = false
 
 //===== INCLUDE MODULES ==========================================
 include { FASTP; MULTIQC } from './modules/qc' addParams(OUTPUT: "${params.outdir}")
@@ -62,6 +63,7 @@ def helpMessage() {
       --depth                   Subsample reads to this depth. Disable with --depth 0. Default = ${params.depth}
       --minLenContig            Minimum contig length. Set to 0 for automatic determination. Default = ${params.minLenContig}
       --minCov                  Minimumcontig coverage. Set to 0 for automatic determination. Default = ${params.minCov}
+      --plasmids_only           Set to true if only the assemblies of the plasmids should be generated. Default = ${params.plasmids_only}
     
     Usage example:
         nextflow run main.nf --samplesheet '/path/to/samplesheet'
@@ -111,6 +113,34 @@ process ASSEMBLY {
         --minlen ${params.minLenContig} \
         --mincov ${params.minCov}
     mv assembly/contigs.fa "assembly/${pair_id}_contigs.fna"
+    """
+}
+
+process PLASMID_ASSEMBLY{
+    container "staphb/spades:latest"
+    tag "${pair_id}"
+
+    publishDir "${params.outdir}/${params.runName}/${pair_id}", mode: 'copy'
+
+    input:
+    tuple val(pair_id), path(reads)
+
+    output:
+    tuple val(pair_id), path("plasmids")
+
+    script:
+    def single = reads instanceof Path
+
+    def input = !single ? "-1 '${reads[0]}' -2 '${reads[1]}'" : "-s '${reads}'"
+    def memory = "${task.memory}".replaceAll("[^0-9]","") 
+    """
+    spades.py -o tmp ${input} \
+        -m ${memory} \
+        -t ${task.cpus} \
+        --plasmid
+    mkdir plasmids
+    mv tmp/contigs.fasta "plasmids/${pair_id}_contigs.fna"
+    mv tmp/scaffolds.fasta "plasmids/${pair_id}_scaffolds.fna"
     """
 }
 
@@ -212,12 +242,11 @@ process CLASSIFICATION {
     """
     gtdbtk classify_wf \
     --genome_dir . \
-    --out_dir "output" \
+    --out_dir . \
     --cpus ${task.cpus} \
     --pplacer_cpus 1 \
     --scratch_dir tmp \
     $fastani
-    mv output/*summary.tsv .
     """
 }
 
@@ -243,10 +272,9 @@ process ANTISMASH {
 
 }
 
+workflow read_samplesheet {
+   main:
 
-workflow assembly {    
-    main:
-    
     // Read samplesheet: find and update paths to reads (externalize from nf?)
     
     READ_SAMPLESHEET(file(params.samplesheet, checkIfExists: true), file(params.samplesheet).getParent()) 
@@ -265,13 +293,31 @@ workflow assembly {
         reads_intermediate
             .map {row -> tuple(row.ID, tuple(file(row.fw_reads), file(row.rv_reads)))}
             .set{reads_ch}        
+    
     }
+
+    emit: 
+        reads_ch
+}
+
+
+workflow assembly_plasmids {
+    take: reads
+    main:
+    // Plasmid assembly
+    PLASMID_ASSEMBLY(reads)
+}
+
+
+workflow assembly {    
+    take: reads
+    main:
 
     def execute_fastp = params.skip_fastp ? false : true
     if (execute_fastp){
 
         //Filter and trim using fastp
-        FASTP(reads_ch)
+        FASTP(reads)
 
         FASTP.out.filteredReads
             .ifEmpty { error "No reads to filter"}
@@ -283,7 +329,7 @@ workflow assembly {
 
         MULTIQC(fastp)
     } else {
-        filteredReads = reads_ch
+        filteredReads = reads
     }
 
     // Shovil assembly
@@ -330,6 +376,12 @@ workflow classification {
 
 workflow {
     paramsUsed()
-    assembly()
-    classification(assembly.out)
+    read_samplesheet()
+    if (params.plasmids_only){
+        assembly_plasmids(read_samplesheet.out)
+    } else {
+        assembly(read_samplesheet.out)
+        assembly_plasmids(read_samplesheet.out)
+        classification(assembly.out)
+    }
 }
