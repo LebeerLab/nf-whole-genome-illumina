@@ -334,7 +334,7 @@ workflow assembly {
     main:
 
     // Shovil assembly
-    ASSEMBLY(filteredReads)
+    ASSEMBLY(reads)
         .set{ assembly_ch }
 
     contigs_ch = assembly_ch
