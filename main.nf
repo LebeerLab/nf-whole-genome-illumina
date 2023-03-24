@@ -300,6 +300,26 @@ workflow read_samplesheet {
         reads_ch
 }
 
+workflow filter_reads {
+    take: reads
+    main:
+
+    //Filter and trim using fastp
+    FASTP(reads)
+
+    FASTP.out.filteredReads
+        .ifEmpty { error "No reads to filter"}
+        .set { filteredReads }
+
+    FASTP.out.fastp
+        .collect()
+        .set{fastp}
+
+    MULTIQC(fastp)
+
+    emit:
+        filteredReads
+}
 
 workflow assembly_plasmids {
     take: reads
@@ -312,25 +332,6 @@ workflow assembly_plasmids {
 workflow assembly {    
     take: reads
     main:
-
-    def execute_fastp = params.skip_fastp ? false : true
-    if (execute_fastp){
-
-        //Filter and trim using fastp
-        FASTP(reads)
-
-        FASTP.out.filteredReads
-            .ifEmpty { error "No reads to filter"}
-            .set { filteredReads }
-
-        FASTP.out.fastp
-            .collect()
-            .set{fastp}
-
-        MULTIQC(fastp)
-    } else {
-        filteredReads = reads
-    }
 
     // Shovil assembly
     ASSEMBLY(filteredReads)
@@ -377,11 +378,20 @@ workflow classification {
 workflow {
     paramsUsed()
     read_samplesheet()
-    if (params.plasmids_only){
-        assembly_plasmids(read_samplesheet.out)
+    
+    def execute_fastp = params.skip_fastp ? false : true
+    if (execute_fastp) {
+        filter_reads(read_samplesheet.out)
+        reads = filter_reads.out
     } else {
-        assembly(read_samplesheet.out)
-        assembly_plasmids(read_samplesheet.out)
+        reads = read_samplesheet.out
+    }
+    
+    if (params.plasmids_only){
+        assembly_plasmids(reads)
+    } else {
+        assembly(reads)
+        assembly_plasmids(reads)
         classification(assembly.out)
     }
 }
