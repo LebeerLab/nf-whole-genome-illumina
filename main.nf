@@ -140,7 +140,7 @@ process PLASMID_ASSEMBLY{
         --plasmid
     mkdir plasmids
     mv tmp/contigs.fasta "plasmids/${pair_id}_contigs.fna"
-    mv tmp/scaffolds.fasta "plasmids/${pair_id}_scaffolds.fna"
+    mv tmp/scaffolds.fasta "plasmids/${pair_id}_scaffolds.fna" || true
     """
 }
 
@@ -235,7 +235,7 @@ process CLASSIFICATION {
     path(mash_db)
 
     output:
-    path("*summary.tsv")
+    path("**.bac120.summary.tsv")
 
     script:
     def fastani = params.skip_fastani ? "--skip_ani_screen" : "--mash_db mash_db"
