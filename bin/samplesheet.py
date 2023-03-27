@@ -18,6 +18,18 @@ def fatal_error_message(message):
     print(f"{red}{message}{end}")
     exit(1)
 
+def clean_ambi(ambi:str):
+    try:
+        amb_type, amb_no, amb_ext = re.findall("(^AMB[-]?[A-Z])[-]?(\d+)(.*)$", ambi)[0]
+    except IndexError as e:
+        #raise NameError(f"Could not identify the AMB code {ambi}")
+        return ambi
+    amb_type = amb_type.replace("-", "")
+    amb_no = amb_no.zfill(4)
+    if len(amb_ext) >0:
+        amb_ext = f"-{amb_ext}"
+    return f"{amb_type}-{amb_no}{amb_ext}"
+
 
 class SampleSheet:
     def __init__(
@@ -120,6 +132,9 @@ class SampleSheet:
             colnames[self.rev_col] = DEF_RV_READS
 
         self.content.rename(columns=colnames)
+
+        # Clean AMB identifiers where possible
+        self.content[DEF_SAMPLE_ID] = self.content[DEF_SAMPLE_ID].apply(lambda x: clean_ambi(x))
 
         # Add resulting assembly path as column
         # RESULTS / RUN / ID/ ASSEMBLY / ID_contigs.fna

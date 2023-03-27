@@ -91,6 +91,7 @@ if (params.help  || params.h){
 }
 
 process ASSEMBLY {
+    errorStrategy 'ignore'
     container "staphb/shovill:latest"
 
     tag "${pair_id}" 
@@ -117,6 +118,7 @@ process ASSEMBLY {
 }
 
 process PLASMID_ASSEMBLY{
+    errorStrategy 'ignore'
     container "staphb/spades:latest"
     tag "${pair_id}"
 
