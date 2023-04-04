@@ -149,21 +149,13 @@ class SampleSheet:
 
     def merge_summaries(self):
 
-        # Assumption: data will originate from a single run most of the time
-        # Therefore: load summary data in dict of pd objects and fetch results from those
+        # Assumption: data will originate from a single run, with a single summary for the qc
+        # and a single summary for the classification
+        # Therefore: load both summary data in dict of pd objects and fetch results from those
 
         folder_col = "run_folder"
         checkm_col = "checkm_gunc"
         gtdb_col = "gtdb_bac120"
-
-        col_by_name = {}
-        col_by_name[checkm_col] = "/qc_checkm_gunc.tsv"
-        # Depends on the output obtained from classification...
-        for filename in os.listdir(self.root_dir + "/results/" + self.run_id):
-            if filename.endswith("summary.tsv"):
-                classification_tsv = filename
-
-        col_by_name[gtdb_col] = f"/{classification_tsv}"
 
         summary_data = {}
         summary_data[checkm_col] = {}
@@ -172,65 +164,24 @@ class SampleSheet:
 
         new_data = self.content.copy()
         # ../PROJ/RESULTS/RUN/SAMPLE/ASSEMBLY/contig.fna
-        new_data[folder_col] = (
-            new_data[DEF_ASSEMBLY].str.split("/").str[:-3].str.join("/")
-        )
+        assembly_roots = new_data[DEF_ASSEMBLY].str.split("/").str[:-3].str.join("/").unique()
+        assert len(assembly_roots) == 1, f"More than one run supplied in same samplesheet!"
 
-        df_run_folders = new_data.groupby(folder_col).first()
-        for colname in [checkm_col, gtdb_col]:
-            df_run_folders[colname] = (
-                df_run_folders.index.astype(str) + col_by_name[colname]
-            )
+        checkm_file = f"{assembly_roots[0]}/qc_checkm_gunc.tsv"
+        # Depends on the output obtained from classification...
+        for filename in os.listdir(self.root_dir + "/results/" + self.run_id):
+            if filename.endswith("summary.tsv"):
+                classification_tsv = filename
+        class_file = f"{assembly_roots[0]}/{classification_tsv}"
+        
+        checkm_data = pd.read_table(checkm_file)
+        checkm_data.index = checkm_data["genome"].str.replace("_contigs", "")
+        class_data = pd.read_table(class_file)
+        class_data.index = class_data["user_genome"].str.replace("_contigs", "")
 
-        for idx, row in df_run_folders.iterrows():
-            summary_data[checkm_col][row[checkm_col]] = pd.read_table(row[checkm_col])
-            summary_data[gtdb_col][row[gtdb_col]] = pd.read_table(row[gtdb_col])
+        new_data.index = new_data[DEF_SAMPLE_ID]
 
-            if "reference_genome" in summary_data[gtdb_col][row[gtdb_col]].columns:
-                summary_data[gtdb_col][row[gtdb_col]] = summary[gtdb_col][
-                    row[gtdb_col]
-                ].rename(
-                    columns={
-                        "reference_genome": "fastani_reference",
-                        "reference_taxonomy": "fastani_taxonomy",
-                    }
-                )
-
-        # Join back to copy of original data
-        cols_to_keep = df_run_folders.columns.difference(new_data.columns)
-        new_data.index = new_data[folder_col]
-        new_data = pd.merge(
-            new_data,
-            df_run_folders[cols_to_keep],
-            left_index=True,
-            right_index=True,
-            how="left",
-        )
-
-        all_data = {}
-        all_data[checkm_col] = []
-        all_data[gtdb_col] = []
-
-        def _fetch_result_from_df(row, colname_df):
-            sample_id = row[DEF_SAMPLE_ID] + "_contigs"
-            if colname_df == gtdb_col:
-                df = summary_data[colname_df][row[gtdb_col]]
-                return df.loc[
-                    df["user_genome"] == sample_id,
-                ]
-            elif colname_df == checkm_col:
-                df = summary_data[colname_df][row[checkm_col]]
-                return df.loc[
-                    df["genome"] == sample_id,
-                ]
-
-        for idx, row in new_data.iterrows():
-            all_data[checkm_col].append(_fetch_result_from_df(row, checkm_col))
-            all_data[gtdb_col].append(_fetch_result_from_df(row, gtdb_col))
-
-        df_checkm = pd.concat(all_data[checkm_col])
-        df_gtdb = pd.concat(all_data[gtdb_col])
-        self.content = pd.concat([self.content, df_checkm, df_gtdb], axis=1)
+        self.content = pd.concat([new_data, checkm_data, class_data], axis=1)
 
     def update_sampledb(self):
         # Add absolute root to reads and assembly
