@@ -229,7 +229,7 @@ process CLASSIFICATION {
     container "theoaphidian/gtdbtk-entry"
     containerOptions "-v ${params.gtdb_db}:/refdata"
 
-    publishDir "${params.outdir}/${params.runName}", mode: 'copy'
+    //publishDir "${params.outdir}/${params.runName}", mode: 'copy'
 
     input:
     path(contigs)
@@ -237,7 +237,7 @@ process CLASSIFICATION {
     path(mash_db)
 
     output:
-    path("**.bac120.summary.tsv")
+    tuple path("*bac120.summary.tsv"), path("**bac120.ani_summary.tsv")
 
     script:
     def fastani = params.skip_fastani ? "--skip_ani_screen" : "--mash_db mash_db"
@@ -250,6 +250,24 @@ process CLASSIFICATION {
     --scratch_dir tmp \
     $fastani
     """
+}
+
+
+process MERGE_CLASSIFICATION {
+
+    publishDir "${params.outdir}/${params.runName}", mode: 'copy'
+
+    input:
+    tuple path(bac_summ), path(bac_ani_summ)
+
+    output:
+    path("classification_summary.tsv")
+
+    script:
+    """
+    merge_class.py
+    """
+
 }
 
 process ANTISMASH {
@@ -277,8 +295,6 @@ process ANTISMASH {
 workflow read_samplesheet {
    main:
 
-    // Read samplesheet: find and update paths to reads (externalize from nf?)
-    
     READ_SAMPLESHEET(file(params.samplesheet, checkIfExists: true), file(params.samplesheet).getParent()) 
 
     // Extract reads from samplesheet
@@ -374,6 +390,8 @@ workflow classification {
     if (params.gtdb_db != null) {
       
         CLASSIFICATION(contigs, file(params.gtdb_db), file(params.mash_db))
+            .set { classif }
+        MERGE_CLASSIFICATION(classif)
     }
 }
 

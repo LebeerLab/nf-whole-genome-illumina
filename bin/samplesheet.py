@@ -19,6 +19,8 @@ def fatal_error_message(message):
     exit(1)
 
 def clean_ambi(ambi:str):
+
+    ambi = str(ambi).upper()
     try:
         amb_type, amb_no, amb_ext = re.findall("(^AMB[-]?[A-Z])[-]?(\d+)(.*)$", ambi)[0]
     except IndexError as e:
@@ -27,7 +29,7 @@ def clean_ambi(ambi:str):
     amb_type = amb_type.replace("-", "")
     amb_no = amb_no.zfill(4)
     if len(amb_ext) >0:
-        amb_ext = f"-{amb_ext}"
+        amb_ext = f"-{amb_ext.replace('-','')}"
     return f"{amb_type}-{amb_no}{amb_ext}"
 
 
@@ -172,8 +174,11 @@ class SampleSheet:
         for filename in os.listdir(self.root_dir + "/results/" + self.run_id):
             if filename.endswith("summary.tsv"):
                 classification_tsv = filename
-        class_file = f"{assembly_roots[0]}/{classification_tsv}"
-        
+        try:
+            class_file = f"{assembly_roots[0]}/{classification_tsv}"
+        except:
+            print("No classification summary found for {self.filename}, aborting addition...")
+            exit()
         checkm_data = pd.read_table(checkm_file)
         checkm_data.index = checkm_data["genome"].str.replace("_contigs", "")
         class_data = pd.read_table(class_file)

@@ -14,5 +14,6 @@ for root, _, files in os.walk("."):
             contents.append(df)
 
 summary = pd.concat(contents)
-print(summary)
+# print(summary)
 summary.to_csv("summary_checkm.tsv", sep="\t", index=False)
+
