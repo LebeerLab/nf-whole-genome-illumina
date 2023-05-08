@@ -134,7 +134,7 @@ class SampleSheet:
             colnames[self.rev_col] = DEF_RV_READS
 
         self.content.rename(columns=colnames)
-
+        
         # Clean AMB identifiers where possible
         self.content[DEF_SAMPLE_ID] = self.content[DEF_SAMPLE_ID].apply(lambda x: clean_ambi(x))
 
@@ -149,13 +149,20 @@ class SampleSheet:
     def write_samplesheet(self):
         self.content.to_csv(CORR_SAMPLESHEET, sep="\t", index=False)
 
+
     def merge_summaries(self):
+
+        def set_sample_index(data):
+            data.index = pd.MultiIndex.from_arrays(
+                data[[DEF_SAMPLE_ID, "run_id"]].values.T,
+                names=[DEF_SAMPLE_ID, "run_id"]
+            )
+            return data
 
         # Assumption: data will originate from a single run, with a single summary for the qc
         # and a single summary for the classification
         # Therefore: load both summary data in dict of pd objects and fetch results from those
 
-        folder_col = "run_folder"
         checkm_col = "checkm_gunc"
         gtdb_col = "gtdb_bac120"
 
@@ -180,12 +187,20 @@ class SampleSheet:
             print("No classification summary found for {self.filename}, aborting addition...")
             exit()
         checkm_data = pd.read_table(checkm_file)
-        checkm_data.index = checkm_data["genome"].str.replace("_contigs", "")
+        checkm_data[DEF_SAMPLE_ID] = checkm_data["genome"].str.replace("_contigs", "")
+        checkm_data = checkm_data.drop(columns="genome")
+        
         class_data = pd.read_table(class_file)
-        class_data.index = class_data["user_genome"].str.replace("_contigs", "")
+        class_data[DEF_SAMPLE_ID] = class_data["user_genome"].str.replace("_contigs", "")
+        class_data = class_data.drop(columns="user_genome")
 
-        new_data.index = new_data[DEF_SAMPLE_ID]
-
+        new_data = set_sample_index(new_data)
+        checkm_data["run_id"] = self.run_id
+        checkm_data = set_sample_index(checkm_data)
+        checkm_data = checkm_data.drop(columns=["run_id", DEF_SAMPLE_ID])
+        class_data["run_id"] = self.run_id
+        class_data = set_sample_index(class_data)
+        class_data = class_data.drop(columns=["run_id", DEF_SAMPLE_ID])
         self.content = pd.concat([new_data, checkm_data, class_data], axis=1)
 
     def update_sampledb(self):

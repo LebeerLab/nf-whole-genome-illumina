@@ -13,5 +13,6 @@ for root, _, files in os.walk("."):
             summaries.append(summ)
 
 summ_m = pd.concat(summaries)
+summ_m = summ_m.groupby("user_genome").first().reset_index()
 summ_m.to_csv("classification_summary.tsv", sep="\t",index=False)
 
