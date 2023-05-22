@@ -183,8 +183,8 @@ process ANNOTATION {
     script:
     """
     bakta-docker.sh --db ${params.bakta_db} --output annotation \
-    --prefix "${pair_id}" -- locus-tag "${pair_id}" \
-    --compliant --threads ${task.cpus}
+    --prefix "${pair_id}" \
+    --compliant --threads ${task.cpus} \
     "${assembly}/${pair_id}_contigs.fna"
     """
 }
@@ -417,6 +417,6 @@ workflow {
     } else {
         assembly(reads)
         assembly_plasmids(reads)
-        //classification(assembly.out)
+        classification(assembly.out)
     }
 }
