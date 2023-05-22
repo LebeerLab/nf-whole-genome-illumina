@@ -9,6 +9,7 @@ params.runName = "run01"
 params.gtdb_db = null
 params.mash_db = "mdb"
 params.gunc_db = null
+params.bakta_db = null
 
 params.truncLen = 0
 params.trimLeft = 0
@@ -47,6 +48,7 @@ def helpMessage() {
       --gtdb_db                 Path to gtdb reference database. Default = ${params.gtdb_db}
       --gunc_db                 Path to a gunc reference database. Default = ${params.gunc_db}
       --mash_db                 Path to the mash db made from the gtdb_db. Leave as is if you want the pipeline to generate this file (takes 45 minutes). Default = ${params.mash_db}
+      --bakta_db                Path to the annotation db needed for bakta. Default = ${params.bakta_db}
 
     Optional arguments:
 
@@ -82,6 +84,7 @@ def paramsUsed() {
     outdir:           ${params.outdir}
     gtdb_db:          ${params.gtdb_db}
     gunc_db:          ${params.gunc_db}
+    bakta_db:         ${params.bakta_db}
     """.stripIndent()
 }
 
@@ -166,10 +169,9 @@ process CHECKM {
     """
 }
 
-
 process ANNOTATION {
-    container "staphb/prokka"
-
+    container null
+    //needs container locally: "oschwengers/bakta"
     tag "${pair_id}"
     publishDir "${params.outdir}/${params.runName}/${pair_id}", mode: 'copy'
 
@@ -180,9 +182,10 @@ process ANNOTATION {
     tuple val(pair_id), path("annotation")
     script:
     """
-    prokka "${assembly}/${pair_id}_contigs.fna" --outdir annotation --prefix "${pair_id}" \
-    --locustag "${pair_id}" --compliant --cpus ${task.cpus} --quiet > prokka.out
-    gzip -r "annotation"
+    bakta-docker.sh --db ${params.bakta_db} --output annotation \
+    --prefix "${pair_id}" \
+    --compliant --threads ${task.cpus} \
+    "${assembly}/${pair_id}_contigs.fna"
     """
 }
 
@@ -370,16 +373,18 @@ workflow assembly {
                 name: "qc_checkm_gunc.tsv", 
                 storeDir: "${params.outdir}/${params.runName}")
     }
-    // Annotation genes
-    ANNOTATION(assembly_ch)
-        // grab AMB.gbk.gz file from output
-        .map { it -> [it[0], 
-                      file(it[1] + "/${it[0]}.gbk.gz")
-                     ] 
-             }
-	.set { predicted_genes_ch }
+    if (params.bakta_db != null) {
+        // Annotation genes
+        ANNOTATION(assembly_ch)
+            // grab AMB.gbk.gz file from output
+            .map { it -> [it[0], 
+                        file(it[1] + "/${it[0]}.gbk.gz")
+                        ] 
+                }
+        .set { predicted_genes_ch }
 
-    ANTISMASH(predicted_genes_ch)
+        ANTISMASH(predicted_genes_ch)
+    }
     emit:
         contigs_ch
 }
