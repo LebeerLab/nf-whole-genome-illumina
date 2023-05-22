@@ -13,7 +13,7 @@ GROUP=$(id -g)
 
 # handle help parameter separately
 if [[ $argcount -eq 0 || " ${args[@]} " =~ " --help " || " ${args[@]} " =~ " -h " ]]; then
-    sudo docker run -it --rm \
+    docker run -it --rm \
                --user $USER:$GROUP \
                $DOCKER_IMAGE
     exit $?
