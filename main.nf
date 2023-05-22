@@ -186,6 +186,7 @@ process ANNOTATION {
     --prefix "${pair_id}" \
     --compliant --threads ${task.cpus} \
     "${assembly}/${pair_id}_contigs.fna"
+    gzip *
     """
 }
 
