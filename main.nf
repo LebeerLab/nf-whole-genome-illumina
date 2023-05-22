@@ -170,7 +170,8 @@ process CHECKM {
 }
 
 process ANNOTATION {
-    container "oschwengers/bakta"
+    container null
+    //needs container locally: "oschwengers/bakta"
     tag "${pair_id}"
     publishDir "${params.outdir}/${params.runName}/${pair_id}", mode: 'copy'
 
@@ -185,25 +186,6 @@ process ANNOTATION {
     --prefix "${pair_id}" -- locus-tag "${pair_id}" \
     --compliant --threads ${task.cpus}
     "${assembly}/${pair_id}_contigs.fna"
-    """
-}
-
-process ANNOTATION_OR {
-    container "staphb/prokka"
-
-    tag "${pair_id}"
-    publishDir "${params.outdir}/${params.runName}/${pair_id}", mode: 'copy'
-
-    input:
-    tuple val(pair_id), path(assembly)
-
-    output:
-    tuple val(pair_id), path("annotation")
-    script:
-    """
-    prokka "${assembly}/${pair_id}_contigs.fna" --outdir annotation --prefix "${pair_id}" \
-    --locustag "${pair_id}" --compliant --cpus ${task.cpus} --quiet > prokka.out
-    gzip -r "annotation"
     """
 }
 
@@ -435,6 +417,6 @@ workflow {
     } else {
         assembly(reads)
         assembly_plasmids(reads)
-        classification(assembly.out)
+        //classification(assembly.out)
     }
 }
