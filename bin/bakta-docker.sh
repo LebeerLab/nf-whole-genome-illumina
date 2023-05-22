@@ -64,7 +64,7 @@ echo "*   Genome location: " $GENOME
 echo "*  Output location : " $OUTPUT
 echo "******************************"
 CMD=$(cat <<-END
-    sudo docker run -it --rm \
+    docker run -i --rm \
     --user $USER:$GROUP
     -v $DB:$DB:ro \
     -v $OUTPUT:$OUTPUT:rw \
