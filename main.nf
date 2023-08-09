@@ -115,7 +115,8 @@ process ASSEMBLY {
     shovill --outdir assembly ${input} --ram ${task.memory} --cpus ${task.cpus} \
         --depth ${params.depth} \
         --minlen ${params.minLenContig} \
-        --mincov ${params.minCov}
+        --mincov ${params.minCov} \
+	--namefmt ${pair_id}-contig%05d
     mv assembly/contigs.fa "assembly/${pair_id}_contigs.fna"
     """
 }
