@@ -1,6 +1,7 @@
 params.samplesheet = "${projectDir}/data/samplesheet.csv"
 params.outdir = "results"
 
+
 params.sampleName = "ID"
 params.fw_reads = "fw_reads"
 params.rv_reads = "rv_reads"
@@ -116,7 +117,7 @@ process ASSEMBLY {
         --depth ${params.depth} \
         --minlen ${params.minLenContig} \
         --mincov ${params.minCov} \
-	--namefmt ${pair_id}-contig%05d
+	--namefmt "${pair_id}-contig%05d"
     mv assembly/contigs.fa "assembly/${pair_id}_contigs.fna"
     """
 }
