@@ -188,7 +188,7 @@ process ANNOTATION {
     --prefix "${pair_id}" \
     --compliant --threads ${task.cpus} \
     "${assembly}/${pair_id}_contigs.fna"
-    gzip *
+    gzip annotation/*
     """
 }
 
@@ -236,17 +236,18 @@ process CLASSIFICATION {
     containerOptions "-v ${params.gtdb_db}:/refdata"
 
     //publishDir "${params.outdir}/${params.runName}", mode: 'copy'
-
+    
     input:
     path(contigs)
     path(gtdb_db)
     path(mash_db)
 
     output:
-    tuple path("*bac120.summary.tsv"), path("**bac120.ani_summary.tsv")
+    tuple path("*bac120.summary.tsv"), path("**bac120.ani_summary.tsv"), emit: classif
+    //path("mash_db"), emit: mash_db
 
     script:
-    def fastani = params.skip_fastani ? "--skip_ani_screen" : "--mash_db mash_db"
+    def fastani = params.skip_fastani ? "--skip_ani_screen" : "--mash_db $mash_db"
     """
     gtdbtk classify_wf \
     --genome_dir . \
@@ -289,8 +290,8 @@ process ANTISMASH {
     tuple val(pair_id), path("antismash/*")
     script:
     """
-    gunzip -c $annotation > antismash.gbk
-    run_antismash antismash.gbk antismash_out -c ${task.cpus} --genefinding-tool none
+    gunzip -c $annotation > antismash.gbff
+    run_antismash antismash.gbff antismash_out -c ${task.cpus} --genefinding-tool none
     cd antismash_out/ 
     rm  antismash/*.gbk antismash/*.zip
     mv antismash ..  
@@ -381,7 +382,7 @@ workflow assembly {
         ANNOTATION(assembly_ch)
             // grab AMB.gbk.gz file from output
             .map { it -> [it[0], 
-                        file(it[1] + "/${it[0]}.gbk.gz")
+                        file(it[1] + "/${it[0]}.gbff.gz")
                         ] 
                 }
         .set { predicted_genes_ch }
@@ -398,8 +399,7 @@ workflow classification {
     if (params.gtdb_db != null) {
       
         CLASSIFICATION(contigs, file(params.gtdb_db), file(params.mash_db))
-            .set { classif }
-        MERGE_CLASSIFICATION(classif)
+        MERGE_CLASSIFICATION(CLASSIFICATION.out.classif)
     }
 }
 
