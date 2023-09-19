@@ -99,14 +99,16 @@ process ASSEMBLY {
     container "staphb/shovill:latest"
 
     tag "${pair_id}" 
+    label 'big_mem'
 
-    publishDir "${params.outdir}/${params.runName}/${pair_id}", mode: 'copy'
+    publishDir "${params.outdir}/${params.runName}/${pair_id}", mode: 'copy', pattern: "assembly/*"
 
     input:
     tuple val(pair_id), path(reads)
 
     output:
-    tuple val(pair_id), path("assembly")
+    tuple val(pair_id), path("assembly"), emit: assembly
+    path("versions.yml"), emit: versions
 
     script:
     def single = reads instanceof Path
@@ -119,21 +121,29 @@ process ASSEMBLY {
         --mincov ${params.minCov} \
 	--namefmt "${pair_id}-contig%05d"
     mv assembly/contigs.fa "assembly/${pair_id}_contigs.fna"
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        shovill: \$(shovill -v | grep -oP "\\d{1,2}.\\d{1,2}.\\d{1,2}" ;)
+    END_VERSIONS    
     """
 }
 
 process PLASMID_ASSEMBLY{
     errorStrategy 'ignore'
     container "staphb/spades:latest"
-    tag "${pair_id}"
 
-    publishDir "${params.outdir}/${params.runName}/${pair_id}", mode: 'copy'
+    tag "${pair_id}"
+    label 'big_mem'
+
+    publishDir "${params.outdir}/${params.runName}/${pair_id}", mode: 'move', pattern: "plasmids/*"
 
     input:
     tuple val(pair_id), path(reads)
 
     output:
-    tuple val(pair_id), path("plasmids")
+    tuple val(pair_id), path("plasmids"), emit: plasmids
+    path("versions.yml"), emit: versions
 
     script:
     def single = reads instanceof Path
@@ -148,6 +158,11 @@ process PLASMID_ASSEMBLY{
     mkdir plasmids
     mv tmp/contigs.fasta "plasmids/${pair_id}_contigs.fna"
     mv tmp/scaffolds.fasta "plasmids/${pair_id}_scaffolds.fna" || true
+    
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        spades: \$(spades.py -v | grep -oP '\\d{1,2}.\\d{1,2}.\\d{1,2}';)
+    END_VERSIONS    
     """
 }
 
@@ -155,6 +170,7 @@ process CHECKM {
     container "nanozoo/checkm:latest"
 
     tag "${pair_id}" 
+    label 'big_mem'
 
     //publishDir "${params.outdir}/${params.runName}/${pair_id}", mode: 'copy'
 
@@ -162,12 +178,18 @@ process CHECKM {
     tuple val(pair_id), path(assembly)
 
     output:
-    tuple val(pair_id), path("checkm_results.tsv")
+    tuple val(pair_id), path("checkm_results.tsv"), emit: results
+    path("versions.yml"), emit: versions
 
     script:
     """ 
     checkm lineage_wf ${assembly} lin --reduced_tree -t ${task.cpus}
     checkm qa lin/lineage.ms lin -t ${task.cpus} -o 2 --tab_table -f checkm_results.tsv
+    
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        checkm: \$(checkm | grep -oP '\\d{1,2}.\\d{1,2}.\\d{1,2}';)
+    END_VERSIONS    
     """
 }
 
@@ -175,13 +197,15 @@ process ANNOTATION {
     container null
     //needs container locally: "oschwengers/bakta"
     tag "${pair_id}"
-    publishDir "${params.outdir}/${params.runName}/${pair_id}", mode: 'copy'
+
+    publishDir "${params.outdir}/${params.runName}/${pair_id}", mode: 'copy', pattern: "annotation/*"
 
     input:
     tuple val(pair_id), path(assembly)
 
     output:
-    tuple val(pair_id), path("annotation")
+    tuple val(pair_id), path("annotation"), emit: annotation
+    path('versions.yml'), emit: versions
     script:
     """
     bakta-docker.sh --db ${params.bakta_db} --output annotation \
@@ -189,6 +213,11 @@ process ANNOTATION {
     --compliant --threads ${task.cpus} \
     "${assembly}/${pair_id}_contigs.fna"
     gzip annotation/*
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        bakta: \$(docker run oschwengers/bakta --version | sed 'bakta //';)
+    END_VERSIONS    
     """
 }
 
@@ -202,13 +231,19 @@ process DETECT_CHIMERS_CONTAMINATION {
     path(guncdb)
 
     output:
-    tuple val(pair_id), path("*.tsv")
+    tuple val(pair_id), path("*.tsv"), emit: gunc
+    path("versions.yml"), emit: versions
 
     script:
     """
     gunc run --input_dir assembly -r ${guncdb} \
         --file_suffix .fna \
         --threads ${task.cpus}        
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        gunc: \$(gunc -v ;)
+    END_VERSIONS    
     """
 }
 
@@ -234,9 +269,10 @@ process MERGE_QC {
 process CLASSIFICATION {
     container "theoaphidian/gtdbtk-entry"
     containerOptions "-v ${params.gtdb_db}:/refdata"
-
+    //conda "$projectDir/conda-env/gtdbtk.yaml"
     //publishDir "${params.outdir}/${params.runName}", mode: 'copy'
-    
+    label "big_mem"
+
     input:
     path(contigs)
     path(gtdb_db)
@@ -244,6 +280,7 @@ process CLASSIFICATION {
 
     output:
     tuple path("*bac120.summary.tsv"), path("**bac120.ani_summary.tsv"), emit: classif
+    path("versions.yml"), emit: versions
     //path("mash_db"), emit: mash_db
 
     script:
@@ -256,13 +293,18 @@ process CLASSIFICATION {
     --pplacer_cpus 1 \
     --scratch_dir tmp \
     $fastani
+    
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        gtdbtk: \$(gtdbtk -v | grep -oP '\\d{1,2}.\\d{1,2}.\\d{1,2}';)
+    END_VERSIONS    
     """
 }
 
 
 process MERGE_CLASSIFICATION {
 
-    publishDir "${params.outdir}/${params.runName}", mode: 'copy'
+    publishDir "${params.outdir}/${params.runName}", mode: 'move'
 
     input:
     tuple path(bac_summ), path(bac_ani_summ)
@@ -281,22 +323,48 @@ process ANTISMASH {
     container null
     tag "${pair_id}"
 
-    publishDir "${params.outdir}/${params.runName}/${pair_id}", mode: 'copy'
+    publishDir "${params.outdir}/${params.runName}/${pair_id}", mode: 'move', pattern: "antismash/*"
 
     input:
     tuple val(pair_id), path(annotation) 
 
     output:
-    tuple val(pair_id), path("antismash/*")
+    tuple val(pair_id), path("antismash/*"), emit: results
+    path("versions.yml"), emit: versions
     script:
     """
-    gunzip -c $annotation > antismash.gbff
-    run_antismash antismash.gbff antismash_out -c ${task.cpus} --genefinding-tool none
-    cd antismash_out/ 
-    rm  antismash/*.gbk antismash/*.zip
-    mv antismash ..  
+    gunzip -c $annotation/*.gbff.gz > antismash.gbff
+    run_antismash antismash.gbff . -c ${task.cpus} --genefinding-tool none
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        antismash: \$(docker run antismash/standalone . --help | grep -oP '\\d{1,2}.\\d{1,2}.\\d{1,2}';)
+    END_VERSIONS    
     """
 
+}
+
+process AMR_FINDER {
+    container null
+    conda "bioconda::ncbi-amrfinderplus"
+    //publishDir "${params.outdir}/${params.runName}", mode: 'copy'
+
+    input:
+    path(assembly) 
+
+    output:
+    path("*_amr_hits"), emit: amr
+    path("versions.yml"), emit: versions
+    script:
+    def outf = assembly.baseName + "_amr_hits"
+    """
+    amrfinder --nucleotide $assembly > $outf
+    
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        amrfinder: \$(amrfinder --version;)
+    END_VERSIONS    
+    """
 }
 
 workflow read_samplesheet {
@@ -329,8 +397,12 @@ workflow filter_reads {
     take: reads
     main:
 
+    ch_versions = Channel.empty()
     //Filter and trim using fastp
     FASTP(reads)
+    ch_versions = ch_versions.mix(
+        FASTP.out.versions.first()
+    )
 
     FASTP.out.filteredReads
         .ifEmpty { error "No reads to filter"}
@@ -341,9 +413,13 @@ workflow filter_reads {
         .set{fastp}
 
     MULTIQC(fastp)
+    ch_versions = ch_versions.mix(
+        MULTIQC.out.versions.first()
+    )
 
     emit:
-        filteredReads
+        reads = filteredReads
+        versions = ch_versions
 }
 
 workflow assembly_plasmids {
@@ -351,6 +427,9 @@ workflow assembly_plasmids {
     main:
     // Plasmid assembly
     PLASMID_ASSEMBLY(reads)
+
+    emit:
+    versions = PLASMID_ASSEMBLY.out.versions
 }
 
 
@@ -358,19 +437,30 @@ workflow assembly {
     take: reads
     main:
 
+    ch_versions = Channel.empty()
     // Shovil assembly
     ASSEMBLY(reads)
-        .set{ assembly_ch }
 
-    contigs_ch = assembly_ch
+    ch_versions = ch_versions.mix(
+        ASSEMBLY.out.versions.first()
+    )
+
+    contigs_ch = ASSEMBLY.out.assembly
                      .collect{it[1] + "/${it[0]}_contigs.fna"}
     
     // QC  
-    CHECKM(assembly_ch)
-        .set{ checkm_ch }
+    CHECKM(ASSEMBLY.out.assembly)
+    checkm_ch = CHECKM.out.results
+    ch_versions = ch_versions.mix(
+        CHECKM.out.versions.first()
+    )
+
     if (params.gunc_db != null) {
-        DETECT_CHIMERS_CONTAMINATION(assembly_ch, file(params.gunc_db))
-            .set { gunc_ch }
+        DETECT_CHIMERS_CONTAMINATION(ASSEMBLY.out.assembly, file(params.gunc_db))
+        gunc_ch = DETECT_CHIMERS_CONTAMINATION.out.gunc
+        ch_versions = ch_versions.mix(
+            DETECT_CHIMERS_CONTAMINATION.out.versions.first()
+        )
         MERGE_QC(checkm_ch.join(gunc_ch))
             .collectFile(
                 keepHeader: true, 
@@ -379,18 +469,26 @@ workflow assembly {
     }
     if (params.bakta_db != null) {
         // Annotation genes
-        ANNOTATION(assembly_ch)
+        ANNOTATION(ASSEMBLY.out.assembly)
+        ANNOTATION.out.annotation
             // grab AMB.gbk.gz file from output
             .map { it -> [it[0], 
                         file(it[1] + "/${it[0]}.gbff.gz")
                         ] 
                 }
-        .set { predicted_genes_ch }
+        predicted_genes_ch = ANNOTATION.out.annotation
+        ch_versions = ch_versions.mix(
+            ANNOTATION.out.versions.first()
+        )
 
         ANTISMASH(predicted_genes_ch)
+        ch_versions = ch_versions.mix(
+            ANTISMASH.out.versions.first()
+        )
     }
     emit:
-        contigs_ch
+        contigs = contigs_ch
+        versions = ch_versions
 }
 
 workflow classification {
@@ -398,28 +496,58 @@ workflow classification {
     main:
     if (params.gtdb_db != null) {
       
+        ch_versions = Channel.empty()
         CLASSIFICATION(contigs, file(params.gtdb_db), file(params.mash_db))
+        ch_versions = ch_versions.mix(
+            CLASSIFICATION.out.versions.first()
+        )
         MERGE_CLASSIFICATION(CLASSIFICATION.out.classif)
     }
+    emit:
+    versions = ch_versions
 }
 
 workflow {
     paramsUsed()
+    ch_versions = Channel.empty()
     read_samplesheet()
-    
+
     def execute_fastp = params.skip_fastp ? false : true
     if (execute_fastp) {
         filter_reads(read_samplesheet.out)
-        reads = filter_reads.out
+        reads = filter_reads.out.reads
+        ch_versions = ch_versions.mix(
+            filter_reads.out.versions
+        )
     } else {
         reads = read_samplesheet.out
     }
     
     if (params.plasmids_only){
         assembly_plasmids(reads)
+        ch_versions = ch_versions.mix(
+            assembly_plasmids.out.versions
+        )
     } else {
         assembly(reads)
+        ch_versions = ch_versions.mix(
+            assembly.out.versions
+        )
         assembly_plasmids(reads)
-        classification(assembly.out)
+        ch_versions = ch_versions.mix(
+            assembly_plasmids.out.versions
+        )
+        classification(assembly.out.contigs)
+        ch_versions = ch_versions.mix(
+            classification.out.versions
+        )
+        AMR_FINDER(assembly.out.contigs)
+        ch_versions = ch_versions.mix(
+            AMR_FINDER.out.versions.first()
+        )
+        AMR_FINDER.out.amr
+         .collectFile(name: 'amrfinder_results.tsv', storeDir: params.outdir, keepHeader: true)
     }
+
+    ch_versions.unique().collectFile(name: 'software_versions.yml', storeDir: params.outdir)
 }
