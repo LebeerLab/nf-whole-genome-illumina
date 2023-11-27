@@ -1,4 +1,5 @@
 params.samplesheet = "${projectDir}/data/samplesheet.csv"
+params.assemblies = null
 params.outdir = "results"
 
 
@@ -510,25 +511,30 @@ workflow classification {
 workflow {
     paramsUsed()
     ch_versions = Channel.empty()
-    read_samplesheet()
 
-    def execute_fastp = params.skip_fastp ? false : true
-    if (execute_fastp) {
-        filter_reads(read_samplesheet.out)
-        reads = filter_reads.out.reads
-        ch_versions = ch_versions.mix(
-            filter_reads.out.versions
-        )
-    } else {
-        reads = read_samplesheet.out
-    }
-    
-    if (params.plasmids_only){
-        assembly_plasmids(reads)
-        ch_versions = ch_versions.mix(
-            assembly_plasmids.out.versions
-        )
-    } else {
+    if (!params.assemblies) {
+        
+        read_samplesheet()
+        def execute_fastp = params.skip_fastp ? false : true
+        
+        // Process reads
+        if (execute_fastp) {
+            filter_reads(read_samplesheet.out)
+            reads = filter_reads.out.reads
+            ch_versions = ch_versions.mix(
+                filter_reads.out.versions
+            )
+        } else {
+            reads = read_samplesheet.out
+        }
+        
+        // Assembly
+        if (params.plasmids_only){
+            assembly_plasmids(reads)
+            ch_versions = ch_versions.mix(
+                assembly_plasmids.out.versions
+            )
+        } else {
         assembly(reads)
         ch_versions = ch_versions.mix(
             assembly.out.versions
@@ -537,17 +543,24 @@ workflow {
         ch_versions = ch_versions.mix(
             assembly_plasmids.out.versions
         )
-        classification(assembly.out.contigs)
-        ch_versions = ch_versions.mix(
-            classification.out.versions
-        )
-        AMR_FINDER(assembly.out.contigs)
-        ch_versions = ch_versions.mix(
-            AMR_FINDER.out.versions.first()
-        )
-        AMR_FINDER.out.amr
-         .collectFile(name: 'amrfinder_results.tsv', storeDir: params.outdir, keepHeader: true)
+        assemblies = assembly.out.contigs    
+        }
+    } else {
+        // Gather assemblies from input dir
+        assemblies = tuple(Channel.fromFilePairs(params.assemblies, checkIfExists: True))
     }
-
+    
+    classification(assemblies)
+    ch_versions = ch_versions.mix(
+        classification.out.versions
+    )
+    AMR_FINDER(assemblies)
+    ch_versions = ch_versions.mix(
+        AMR_FINDER.out.versions.first()
+    )
+    AMR_FINDER.out.amr
+        .collectFile(name: 'amrfinder_results.tsv', storeDir: params.outdir, keepHeader: true)
+    
+    // collect versions
     ch_versions.unique().collectFile(name: 'software_versions.yml', storeDir: params.outdir)
 }
