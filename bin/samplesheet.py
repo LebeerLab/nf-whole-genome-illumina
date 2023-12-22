@@ -286,6 +286,8 @@ class SampleSheet:
                     if simplify_samplename(file) == filename:
                         if absolute:
                             root = os.path.join(self.root_dir, root)
+                        if is_assembly and not file.endswith('.fna'):
+                           continue
                         return os.path.join(root, file)
             raise FileNotFoundError(
                 f"Could not locate the file specified as {filename}"

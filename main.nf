@@ -12,6 +12,7 @@ params.gtdb_db = null
 params.mash_db = "mdb"
 params.gunc_db = null
 params.bakta_db = null
+params.amr_db = null
 
 params.truncLen = 0
 params.trimLeft = 0
@@ -26,6 +27,8 @@ params.minCov = 2
 params.skip_samplesheet = false
 params.skip_fastp = false
 params.skip_fastani = false
+params.skip_amr = false
+params.skip_annot = false
 params.single_end = false
 params.plasmids_only = false
 
@@ -130,6 +133,22 @@ process ASSEMBLY {
     """
 }
 
+process FAKE_ASSEMBLY {
+    tag "${pair_id}" 
+
+    input:
+    tuple val(pair_id), path(reads)
+
+    output:
+    tuple val(pair_id), path("assembly"), emit: assembly
+
+    script:
+    """
+    mkdir assembly
+    gunzip -c ${reads} > assembly/${pair_id}_contigs.fna
+    """
+}
+
 process PLASMID_ASSEMBLY{
     errorStrategy 'ignore'
     container "staphb/spades:latest"
@@ -196,6 +215,7 @@ process CHECKM {
 
 process ANNOTATION {
     container null
+    errorStrategy 'ignore'
     //needs container locally: "oschwengers/bakta"
     tag "${pair_id}"
 
@@ -212,6 +232,7 @@ process ANNOTATION {
     bakta-docker.sh --db ${params.bakta_db} --output annotation \
     --prefix "${pair_id}" \
     --compliant --threads ${task.cpus} \
+    --force \
     "${assembly}/${pair_id}_contigs.fna"
     gzip annotation/*
 
@@ -350,8 +371,10 @@ process AMR_FINDER {
     conda "bioconda::ncbi-amrfinderplus"
     //publishDir "${params.outdir}/${params.runName}", mode: 'copy'
 
+    cpus 4
+
     input:
-    path(assembly) 
+    tuple val(id), path(assembly) 
 
     output:
     path("*_amr_hits"), emit: amr
@@ -359,7 +382,10 @@ process AMR_FINDER {
     script:
     def outf = assembly.baseName + "_amr_hits"
     """
-    amrfinder --nucleotide $assembly > $outf
+    amrfinder \\
+      --nucleotide $assembly/*.fna \\
+      --database ${params.amr_db} \\
+      --plus > $outf
     
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
@@ -439,25 +465,41 @@ workflow assembly {
     main:
 
     ch_versions = Channel.empty()
-    // Shovil assembly
-    ASSEMBLY(reads)
 
-    ch_versions = ch_versions.mix(
-        ASSEMBLY.out.versions.first()
-    )
+    if (params.assemblies) {
+        FAKE_ASSEMBLY(reads)
+        assemblies = FAKE_ASSEMBLY.out.assembly
+    } else {
+        // Shovil assembly
+        ASSEMBLY(reads)
+        ASSEMBLY.out.assembly.set{assemblies}
+        ch_versions = ch_versions.mix(
+            ASSEMBLY.out.versions.first()
+        )
+    }
 
-    contigs_ch = ASSEMBLY.out.assembly
+    contigs_ch = assemblies
                      .collect{it[1] + "/${it[0]}_contigs.fna"}
     
     // QC  
-    CHECKM(ASSEMBLY.out.assembly)
+    CHECKM(assemblies)
     checkm_ch = CHECKM.out.results
     ch_versions = ch_versions.mix(
         CHECKM.out.versions.first()
     )
+    if (!params.skip_amr) {
+        AMR_FINDER(assemblies)
+        ch_versions = ch_versions.mix(
+            AMR_FINDER.out.versions.first()
+        )
+    
+        AMR_FINDER.out.amr
+            .collectFile(name: 'amrfinder_results.tsv', storeDir: params.outdir, keepHeader: true)
+
+    }
 
     if (params.gunc_db != null) {
-        DETECT_CHIMERS_CONTAMINATION(ASSEMBLY.out.assembly, file(params.gunc_db))
+        DETECT_CHIMERS_CONTAMINATION(assemblies, file(params.gunc_db))
         gunc_ch = DETECT_CHIMERS_CONTAMINATION.out.gunc
         ch_versions = ch_versions.mix(
             DETECT_CHIMERS_CONTAMINATION.out.versions.first()
@@ -470,7 +512,7 @@ workflow assembly {
     }
     if (params.bakta_db != null) {
         // Annotation genes
-        ANNOTATION(ASSEMBLY.out.assembly)
+        ANNOTATION(assemblies)
         ANNOTATION.out.annotation
             // grab AMB.gbk.gz file from output
             .map { it -> [it[0], 
@@ -512,11 +554,13 @@ workflow {
     paramsUsed()
     ch_versions = Channel.empty()
 
-    if (!params.assemblies) {
-        
+    if (params.assemblies) {
+        reads = Channel.fromPath(params.assemblies)
+            .map { tuple(it.baseName, it) }
+    } else {
         read_samplesheet()
         def execute_fastp = params.skip_fastp ? false : true
-        
+    
         // Process reads
         if (execute_fastp) {
             filter_reads(read_samplesheet.out)
@@ -527,39 +571,32 @@ workflow {
         } else {
             reads = read_samplesheet.out
         }
-        
-        // Assembly
-        if (params.plasmids_only){
-            assembly_plasmids(reads)
-            ch_versions = ch_versions.mix(
-                assembly_plasmids.out.versions
-            )
-        } else {
-        assembly(reads)
-        ch_versions = ch_versions.mix(
-            assembly.out.versions
-        )
+    }
+    
+    // Assembly
+    if (params.plasmids_only){
         assembly_plasmids(reads)
         ch_versions = ch_versions.mix(
             assembly_plasmids.out.versions
         )
-        assemblies = assembly.out.contigs    
-        }
     } else {
-        // Gather assemblies from input dir
-        assemblies = tuple(Channel.fromFilePairs(params.assemblies, checkIfExists: True))
+    assembly(reads)
+    ch_versions = ch_versions.mix(
+        assembly.out.versions
+    )
+    if (!params.assemblies){
+        assembly_plasmids(reads)
+        ch_versions = ch_versions.mix(
+            assembly_plasmids.out.versions
+        )
+    }
+    assemblies = assembly.out.contigs    
     }
     
     classification(assemblies)
     ch_versions = ch_versions.mix(
         classification.out.versions
     )
-    AMR_FINDER(assemblies)
-    ch_versions = ch_versions.mix(
-        AMR_FINDER.out.versions.first()
-    )
-    AMR_FINDER.out.amr
-        .collectFile(name: 'amrfinder_results.tsv', storeDir: params.outdir, keepHeader: true)
     
     // collect versions
     ch_versions.unique().collectFile(name: 'software_versions.yml', storeDir: params.outdir)
