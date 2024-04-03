@@ -2,7 +2,6 @@ params.samplesheet = "${projectDir}/data/samplesheet.csv"
 params.assemblies = null
 params.outdir = "results"
 
-
 params.sampleName = "ID"
 params.fw_reads = "fw_reads"
 params.rv_reads = "rv_reads"
@@ -12,7 +11,6 @@ params.gtdb_db = null
 params.mash_db = "mdb"
 params.gunc_db = null
 params.bakta_db = null
-params.amr_db = null
 
 params.truncLen = 0
 params.trimLeft = 0
@@ -29,6 +27,7 @@ params.skip_fastp = false
 params.skip_fastani = false
 params.skip_amr = false
 params.skip_annot = false
+params.skip_smash = false
 params.single_end = false
 params.plasmids_only = false
 
@@ -105,7 +104,7 @@ process ASSEMBLY {
     tag "${pair_id}" 
     label 'big_mem'
 
-    publishDir "${params.outdir}/${params.runName}/${pair_id}", mode: 'copy', pattern: "assembly/*"
+    publishDir "${params.outdir}/${params.runName}/${pair_id}"
 
     input:
     tuple val(pair_id), path(reads)
@@ -219,7 +218,7 @@ process ANNOTATION {
     //needs container locally: "oschwengers/bakta"
     tag "${pair_id}"
 
-    publishDir "${params.outdir}/${params.runName}/${pair_id}", mode: 'copy', pattern: "annotation/*"
+    publishDir "${params.outdir}/${params.runName}/${pair_id}"
 
     input:
     tuple val(pair_id), path(assembly)
@@ -227,13 +226,16 @@ process ANNOTATION {
     output:
     tuple val(pair_id), path("annotation"), emit: annotation
     path('versions.yml'), emit: versions
+
     script:
     """
     bakta-docker.sh --db ${params.bakta_db} --output annotation \
     --prefix "${pair_id}" \
+    --strain "${pair_id}" \
     --compliant --threads ${task.cpus} \
     --force \
     "${assembly}/${pair_id}_contigs.fna"
+    
     gzip annotation/*
 
     cat <<-END_VERSIONS > versions.yml
@@ -366,6 +368,22 @@ process ANTISMASH {
 
 }
 
+process AMR_FINDER_UPDATE_DB {
+    container null
+    conda "bioconda::ncbi-amrfinderplus"
+
+    cpus 1
+
+    output:
+    path("amrdb/*.1"), emit: amr_db
+
+    script:
+    """
+    mkdir amrdb
+    amrfinder_update amrdb
+    """
+}
+
 process AMR_FINDER {
     container null
     conda "bioconda::ncbi-amrfinderplus"
@@ -375,6 +393,7 @@ process AMR_FINDER {
 
     input:
     tuple val(id), path(assembly) 
+    path(amr_db)
 
     output:
     path("*_amr_hits"), emit: amr
@@ -384,7 +403,7 @@ process AMR_FINDER {
     """
     amrfinder \\
       --nucleotide $assembly/*.fna \\
-      --database ${params.amr_db} \\
+      --database $amr_db \\
       --plus > $outf
     
     cat <<-END_VERSIONS > versions.yml
@@ -459,6 +478,24 @@ workflow assembly_plasmids {
     versions = PLASMID_ASSEMBLY.out.versions
 }
 
+workflow amrfinder {
+    take: assembly
+    
+    main:
+
+    ch_versions = Channel.empty()
+    AMR_FINDER_UPDATE_DB()
+    AMR_FINDER(assembly, AMR_FINDER_UPDATE_DB.out.amr_db)
+    ch_versions = ch_versions.mix(
+        AMR_FINDER.out.versions.first()
+    )
+    AMR_FINDER.out.amr
+        .collectFile(name: 'amrfinder_results.tsv', storeDir: params.outdir, keepHeader: true)        
+    
+    emit:
+        versions = ch_versions
+}
+
 
 workflow assembly {    
     take: reads
@@ -467,7 +504,11 @@ workflow assembly {
     ch_versions = Channel.empty()
 
     if (params.assemblies) {
-        FAKE_ASSEMBLY(reads)
+        reads
+          .map{  tuple(it[0].replace(/\.fa/, "").replaceAll(/\./, "_"), it[1]) }
+          .set{ reads_clean_name }
+
+        FAKE_ASSEMBLY(reads_clean_name)
         assemblies = FAKE_ASSEMBLY.out.assembly
     } else {
         // Shovil assembly
@@ -478,8 +519,8 @@ workflow assembly {
         )
     }
 
-    contigs_ch = assemblies
-                     .collect{it[1] + "/${it[0]}_contigs.fna"}
+     contigs_ch = assemblies
+       .collect{it[1] + "/${it[0]}_contigs.fna"}
     
     // QC  
     CHECKM(assemblies)
@@ -487,15 +528,12 @@ workflow assembly {
     ch_versions = ch_versions.mix(
         CHECKM.out.versions.first()
     )
-    if (!params.skip_amr) {
-        AMR_FINDER(assemblies)
-        ch_versions = ch_versions.mix(
-            AMR_FINDER.out.versions.first()
-        )
     
-        AMR_FINDER.out.amr
-            .collectFile(name: 'amrfinder_results.tsv', storeDir: params.outdir, keepHeader: true)
-
+    if (!params.skip_amr) {
+        amrfinder(assemblies)
+        ch_versions = ch_versions.mix(
+            amrfinder.out.versions
+        )
     }
 
     if (params.gunc_db != null) {
@@ -523,11 +561,11 @@ workflow assembly {
         ch_versions = ch_versions.mix(
             ANNOTATION.out.versions.first()
         )
-
+        if (!params.skip_smash) {
         ANTISMASH(predicted_genes_ch)
         ch_versions = ch_versions.mix(
             ANTISMASH.out.versions.first()
-        )
+        )}
     }
     emit:
         contigs = contigs_ch
