@@ -93,7 +93,7 @@ class SampleSheet:
 
             assert (
                 self.fw_col in smpsh.columns
-            ), f"Forward column {self.fw_column} not found in file with header {smpsh.columns.values}."
+            ), f"Forward column {self.fw_col} not found in file with header {smpsh.columns.values}."
             if self.paired_end:
                 assert (
                     self.rev_col in smpsh.columns

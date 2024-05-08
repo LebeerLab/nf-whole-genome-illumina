@@ -28,7 +28,10 @@ params.skip_fastani = false
 params.skip_amr = false
 params.skip_annot = false
 params.skip_smash = false
+params.skip_qc = false
+params.skip_classif = false
 params.single_end = false
+params.skip_plasmids = false
 params.plasmids_only = false
 
 //===== INCLUDE MODULES ==========================================
@@ -380,7 +383,7 @@ process AMR_FINDER_UPDATE_DB {
     script:
     """
     mkdir amrdb
-    amrfinder_update amrdb
+    amrfinder_update --database amrdb
     """
 }
 
@@ -523,18 +526,13 @@ workflow assembly {
        .collect{it[1] + "/${it[0]}_contigs.fna"}
     
     // QC  
+    if (!params.skip_qc){
     CHECKM(assemblies)
     checkm_ch = CHECKM.out.results
     ch_versions = ch_versions.mix(
         CHECKM.out.versions.first()
     )
     
-    if (!params.skip_amr) {
-        amrfinder(assemblies)
-        ch_versions = ch_versions.mix(
-            amrfinder.out.versions
-        )
-    }
 
     if (params.gunc_db != null) {
         DETECT_CHIMERS_CONTAMINATION(assemblies, file(params.gunc_db))
@@ -547,7 +545,15 @@ workflow assembly {
                 keepHeader: true, 
                 name: "qc_checkm_gunc.tsv", 
                 storeDir: "${params.outdir}/${params.runName}")
+     }
     }
+    if (!params.skip_amr) {
+        amrfinder(assemblies)
+        ch_versions = ch_versions.mix(
+            amrfinder.out.versions
+        )
+    }
+
     if (params.bakta_db != null) {
         // Annotation genes
         ANNOTATION(assemblies)
@@ -622,7 +628,7 @@ workflow {
     ch_versions = ch_versions.mix(
         assembly.out.versions
     )
-    if (!params.assemblies){
+    if (!params.assemblies & !params.skip_plasmids){
         assembly_plasmids(reads)
         ch_versions = ch_versions.mix(
             assembly_plasmids.out.versions
@@ -630,12 +636,12 @@ workflow {
     }
     assemblies = assembly.out.contigs    
     }
-    
+    if (!params.skip_classif) {
     classification(assemblies)
     ch_versions = ch_versions.mix(
         classification.out.versions
     )
-    
+    }
     // collect versions
     ch_versions.unique().collectFile(name: 'software_versions.yml', storeDir: params.outdir)
 }
