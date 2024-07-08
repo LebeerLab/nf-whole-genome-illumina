@@ -221,7 +221,7 @@ process ANNOTATION {
     //needs container locally: "oschwengers/bakta"
     tag "${pair_id}"
 
-    publishDir "${params.outdir}/${params.runName}/${pair_id}"
+    publishDir "${params.outdir}/${params.runName}/${pair_id}", mode: 'copy'
 
     input:
     tuple val(pair_id), path(assembly)

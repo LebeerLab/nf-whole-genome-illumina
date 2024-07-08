@@ -9,6 +9,7 @@ DEF_SAMPLE_ID = "ID"
 DEF_FW_READS = "fw_reads"
 DEF_RV_READS = "rv_reads"
 DEF_ASSEMBLY = "assembly"
+DEF_ASS_METH = "assembly_method"
 DEF_RUN = "run01"
 
 
@@ -118,7 +119,7 @@ class SampleSheet:
         self.content[[DEF_ASSEMBLY]] = self.content[[DEF_ASSEMBLY]].apply(
             lambda x: self._fetch_filepath(x, absolute=True, is_assembly=True)
         )
-
+        
     def update_samplesheet(self):
 
         self._build_read_paths()
@@ -142,7 +143,7 @@ class SampleSheet:
         # RESULTS / RUN / ID/ ASSEMBLY / ID_contigs.fna
         root_contig = self.root_dir + "/results/"
         self.content[DEF_ASSEMBLY] = [
-            f"{root_contig}{run}/{id}/assembly/{id}_contigs.fna"
+            f"{root_contig}{run}/{id}/assembly/{id}_contigs.fna.gz"
             for id, run in zip(self.content[DEF_SAMPLE_ID], self.content["run_id"])
         ]
 
@@ -218,6 +219,9 @@ class SampleSheet:
             .map(generate_uqid)
         )
 
+        def extract_assembly_method():
+            proj_dir = self.content.project.first()
+
         def extract_child_folder_name(read_paths: pd.Series, parent_folder):
             try:
                 return (
@@ -238,6 +242,9 @@ class SampleSheet:
         self.content["project"] = extract_child_folder_name(
             self.content[DEF_FW_READS], "projects"
         )
+
+        # Extract assembly method
+        self.content[[DEF_ASS_METH]] = extract_assembly_method()
 
         # Add QC and class info
         try:
@@ -300,3 +307,7 @@ class SampleSheet:
         simple_names = simplify_samplenames(inp_files)
 
         return simple_names.apply(lambda x: find_matching_file(x, rt, absolute))
+
+if __name__ == "__main__":
+    import sys
+    input = sys.argv[0]
