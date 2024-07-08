@@ -107,7 +107,7 @@ process ASSEMBLY {
     tag "${pair_id}" 
     label 'big_mem'
 
-    publishDir "${params.outdir}/${params.runName}/${pair_id}"
+    publishDir "${params.outdir}/${params.runName}/${pair_id}", mode: 'copy'
 
     input:
     tuple val(pair_id), path(reads)
