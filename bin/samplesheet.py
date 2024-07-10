@@ -220,7 +220,8 @@ class SampleSheet:
         )
 
         def extract_assembly_method():
-            proj_dir = self.content.project.first()
+            #proj_dir = self.content.project.first()
+            return "shovill 1.1.0"
 
         def extract_child_folder_name(read_paths: pd.Series, parent_folder):
             try:
@@ -293,7 +294,7 @@ class SampleSheet:
                     if simplify_samplename(file) == filename:
                         if absolute:
                             root = os.path.join(self.root_dir, root)
-                        if is_assembly and not file.endswith('.fna'):
+                        if is_assembly and not file.endswith('.fna.gz'):
                            continue
                         return os.path.join(root, file)
             raise FileNotFoundError(
