@@ -40,6 +40,8 @@ include { READ_SAMPLESHEET } from './modules/samplesheet' addParams(
     sampleName : "${params.sampleName}", fw_reads : "${params.fw_reads}", 
     rv_reads : "${params.rv_reads}", runName : "${params.runName}")
 
+include { ANTISMASH } from './modules/antismash' addParams(OUTDIR: "${params.outdir}", RUNNAME: "${params.runName}")
+include { AMR_FINDER_UPDATE_DB; AMR_FINDER } from './modules/amr' addParams(OUTDIR: "${params.outdir}", RUNNAME: "${params.runName}")
 // ================================================================
 def helpMessage() {
     log.info"""
@@ -344,76 +346,6 @@ process MERGE_CLASSIFICATION {
     merge_class.py
     """
 
-}
-
-process ANTISMASH {
-    container null
-    tag "${pair_id}"
-
-    publishDir "${params.outdir}/${params.runName}/${pair_id}", mode: 'move', pattern: "antismash/*"
-
-    input:
-    tuple val(pair_id), path(annotation) 
-
-    output:
-    tuple val(pair_id), path("antismash/*"), emit: results
-    path("versions.yml"), emit: versions
-    script:
-    """
-    gunzip -c $annotation/*.gbff.gz > antismash.gbff
-    run_antismash antismash.gbff . -c ${task.cpus} --genefinding-tool none
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        antismash: \$(docker run antismash/standalone . --help | grep -oP '\\d{1,2}.\\d{1,2}.\\d{1,2}';)
-    END_VERSIONS    
-    """
-
-}
-
-process AMR_FINDER_UPDATE_DB {
-    container null
-    conda "bioconda::ncbi-amrfinderplus"
-
-    cpus 1
-
-    output:
-    path("amrdb/*.1"), emit: amr_db
-
-    script:
-    """
-    mkdir amrdb
-    amrfinder_update --database amrdb
-    """
-}
-
-process AMR_FINDER {
-    container null
-    conda "bioconda::ncbi-amrfinderplus"
-    //publishDir "${params.outdir}/${params.runName}", mode: 'copy'
-
-    cpus 4
-
-    input:
-    tuple val(id), path(assembly) 
-    path(amr_db)
-
-    output:
-    path("*_amr_hits"), emit: amr
-    path("versions.yml"), emit: versions
-    script:
-    def outf = assembly.baseName + "_amr_hits"
-    """
-    amrfinder \\
-      --nucleotide $assembly/*.fna \\
-      --database $amr_db \\
-      --plus > $outf
-    
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        amrfinder: \$(amrfinder --version;)
-    END_VERSIONS    
-    """
 }
 
 workflow read_samplesheet {

@@ -83,6 +83,7 @@ class SampleSheet:
     def read_samplesheet(self):
 
         try:
+            
             if self.filename.endswith(".tsv"):
                 smpsh = pd.read_table(self.filename)
 
@@ -91,7 +92,7 @@ class SampleSheet:
             else:
                 smpsh = pd.read_csv(self.filename)
             ## Assertion of sample cols
-
+            
             assert (
                 self.fw_col in smpsh.columns
             ), f"Forward column {self.fw_col} not found in file with header {smpsh.columns.values}."
@@ -123,6 +124,7 @@ class SampleSheet:
     def update_samplesheet(self):
 
         self._build_read_paths()
+        print(self.content)
         # Add run_name as column
         self.content["run_id"] = self.run_id
 
@@ -220,8 +222,12 @@ class SampleSheet:
         )
 
         def extract_assembly_method():
-            #proj_dir = self.content.project.first()
-            return "shovill 1.1.0"
+            wd = os.getcwd()
+            sr_assembly = "shovill 1.1.0"
+            lr_assembly = "Flye 2.8.1-b1676"
+            if re.search("nanopore",wd,re.IGNORECASE):
+                return lr_assembly
+            return sr_assembly
 
         def extract_child_folder_name(read_paths: pd.Series, parent_folder):
             try:
@@ -294,11 +300,12 @@ class SampleSheet:
                     if simplify_samplename(file) == filename:
                         if absolute:
                             root = os.path.join(self.root_dir, root)
-                        if is_assembly and not file.endswith('.fna.gz'):
+                        if is_assembly and file.endswith('.fna.gz'):
                            continue
                         return os.path.join(root, file)
+
             raise FileNotFoundError(
-                f"Could not locate the file specified as {filename}"
+                f"Could not locate the file specified as {filename}; settings = {rootdir} absolute:{absolute}, is_assembly:{is_assembly}"
             )
 
         if is_assembly:
