@@ -191,7 +191,7 @@ process PLASMID_ASSEMBLY{
 }
 
 process CHECKM {
-    container "nanozoo/checkm:latest"
+    container "staphb/checkm:latest"
 
     tag "${pair_id}" 
     label 'big_mem'
@@ -239,7 +239,7 @@ process ANNOTATION {
     --strain "${pair_id}" \
     --compliant --threads ${task.cpus} \
     --force \
-    "${assembly}/${pair_id}_contigs.fna"
+    ${assembly}
     
     gzip annotation/*
 
@@ -440,8 +440,11 @@ workflow assembly {
 
     if (params.assemblies) {
         reads
-          .map{  tuple(it[0].replace(/\.fa/, "").replaceAll(/\./, "_"), it[1]) }
+          .map{ tuple(it[0].replace(/\.fa/, "")
+                           .replaceAll(/\./, "_"), it[1]) 
+           }
           .set{ reads_clean_name }
+
 
         FAKE_ASSEMBLY(reads_clean_name)
         assemblies = FAKE_ASSEMBLY.out.assembly
@@ -488,13 +491,16 @@ workflow assembly {
 
     if (params.bakta_db != null) {
         // Annotation genes
-        ANNOTATION(assemblies)
+        fnas = assemblies
+           .map{ tuple(it[0], file(it[1] + "/*.fna")) }
+        ANNOTATION(fnas)
         ANNOTATION.out.annotation
             // grab AMB.gbk.gz file from output
             .map { it -> [it[0], 
                         file(it[1] + "/${it[0]}.gbff.gz")
                         ] 
                 }
+
         predicted_genes_ch = ANNOTATION.out.annotation
         ch_versions = ch_versions.mix(
             ANNOTATION.out.versions.first()
@@ -532,7 +538,7 @@ workflow {
 
     if (params.assemblies) {
         reads = Channel.fromPath(params.assemblies)
-            .map { tuple(it.baseName, it) }
+            .map { tuple(it.simpleName, it) }
     } else {
         read_samplesheet()
         def execute_fastp = params.skip_fastp ? false : true

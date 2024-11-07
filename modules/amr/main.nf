@@ -43,3 +43,29 @@ process AMR_FINDER {
     END_VERSIONS    
     """
 }
+
+process RESFINDER {
+
+  container 'genomicepidemiology/resfinder:latest'
+  publishdir "${params.OUTDIR}/${params.RUNNAME}/${id}", mode: 'copy'
+
+  cpus 4
+
+  input:
+  tuple val(id), path(assembly), val(species)
+
+  output:
+  path("*_resfinder"), emit: amr
+  path("versions.yml"), emit: versions
+
+  script:
+  def outf = assembly.baseName + "_resfinder"
+  """
+  resfinder -ifa $assembly -o $outf -s $species --acquired --point
+  cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        refinder: \$(amrfinder --version;)
+  END_VERSIONS
+  """
+
+}
