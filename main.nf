@@ -191,7 +191,7 @@ process PLASMID_ASSEMBLY{
 }
 
 process CHECKM {
-    container "staphb/checkm:latest"
+    container "theoaphidian/checkm:latest"
 
     tag "${pair_id}" 
     label 'big_mem'
