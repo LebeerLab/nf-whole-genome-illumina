@@ -11,6 +11,7 @@ params.gtdb_db = null
 params.mash_db = "mdb"
 params.gunc_db = null
 params.bakta_db = null
+params.amr_db = null
 
 params.truncLen = 0
 params.trimLeft = 0
@@ -94,6 +95,7 @@ def paramsUsed() {
     gtdb_db:          ${params.gtdb_db}
     gunc_db:          ${params.gunc_db}
     bakta_db:         ${params.bakta_db}
+    amr_db:           ${params.amr_db}
     """.stripIndent()
 }
 
@@ -419,8 +421,13 @@ workflow amrfinder {
     main:
 
     ch_versions = Channel.empty()
-    AMR_FINDER_UPDATE_DB()
-    AMR_FINDER(assembly, AMR_FINDER_UPDATE_DB.out.amr_db)
+    if (params.amr_db != null) {
+      amr_db = file(params.amr_db)
+    } else {
+      AMR_FINDER_UPDATE_DB()
+      amr_db = AMR_FINDER_UPDATE_DB.out.amr_db
+    }
+    AMR_FINDER(assembly, amr_db)
     ch_versions = ch_versions.mix(
         AMR_FINDER.out.versions.first()
     )

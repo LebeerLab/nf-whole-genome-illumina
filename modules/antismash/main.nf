@@ -17,7 +17,8 @@ process ANTISMASH {
     script:
     """
     gunzip -c $annotation/*.gbff.gz > antismash.gbff
-    run_antismash antismash.gbff . -c ${task.cpus} --genefinding-tool none
+    run_antismash antismash.gbff . -c ${task.cpus} \
+      --genefinding-tool none
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
